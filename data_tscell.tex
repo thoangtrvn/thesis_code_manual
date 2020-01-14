@@ -1,0 +1,18 @@
+\chapter{data\_tscell.f95}
+
+\section{init\_SFU\_state\_with\_small\_RyR}
+\label{sec:init_SFU_state_with_small_RyR}
+
+Read Sect.\ref{sec:init_SFU_state}. 
+\begin{verbatim}
+init_SFU_state_with_smallRyR(N_L, mL, NUM_STATES_SFU, U_Ro, irow_R,  &
+         irow_R_small, U_Ro_small, sfu_state)
+         
+
+irow_R_small
+U_Ro_small
+sfu_state [output] = receive state-indices (vector of length 
+                      1..(num_smallRyRneighbors+1)*NSFU
+So, from 1..NSFU = indices for CRU
+    from NSFU+1.. = indices for rogue RyRs         
+\end{verbatim}

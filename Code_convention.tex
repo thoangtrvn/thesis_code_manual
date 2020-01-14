@@ -1,0 +1,13 @@
+\chapter{Code convention}
+\label{chap:code_convention}
+
+\section{Write to log}
+\label{sec:write2log}
+
+We use the style
+\begin{Verbatim}
+    WRITE(log_string,*) "Error: unknown mode"
+    call write2log(log_string)
+\end{Verbatim}
+with \verb!log_string! is the CHARACTER* variable that contains the strong to
+write out. 

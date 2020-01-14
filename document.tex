@@ -1,0 +1,233 @@
+\documentclass[11pt]{book}
+\usepackage{amsmath} %Never write a paper without using amsmath for its many new commands
+
+\usepackage{amssymb} %Some extra symbols
+\usepackage{framed}
+\usepackage{color}  %Add color capabilities to fonts,e.g. \color{blue}{text something}
+\usepackage{listings} % Add typeset programs (programming code) within LaTeX.
+\usepackage{verbatim}
+\usepackage{fancyvrb}
+\usepackage{chemarr}
+\usepackage[version=3]{mhchem}
+\usepackage{draftcopy}
+\usepackage{makeidx}
+\usepackage[hypertex, dvips]{hyperref}
+\usepackage{breakurl}  % should be after hyperref package. This package is for
+% latex-->dvips-->ps2pdf; not for pdflatex (which is recommended to use
+% [hyphens]{url} package)
+\usepackage[square]{natbib}
+\usepackage{ulem}  
+% support : \uline, \sout, \uuline...
+\usepackage{soul}
+% NOTE: url package break the line at slashes, but not break long directory or
+% filenames. So we need to had hyphens options
+%\usepackage[hyphens]{url} %usage: \url{URL}
+%%\usepackage[hyphenbreaks]{breakurl} %usage: \burl{URL}, allow line-break after
+% hyphens
+%\usepackage{breakcites}
+
+\ifx\pdftexversion\undefined
+\usepackage[dvips]{graphicx}
+%%%%%%%% 
+%% To include .jpg and .pnm into latex
+%%%%%%%%%%%%%%\DeclareGraphicsExtensions{.jpg,.eps,.pnm}
+\DeclareGraphicsRule{.jpg}{eps}{.jpg.bb}{`jpeg2ps -h #1}
+\DeclareGraphicsRule{.pnm}{eps}{.pnm.bb}{`pnmtops #1}
+\else
+\usepackage{graphicx}
+\fi
+ 
+\usepackage{epsfig}
+
+
+\def\mc{\mathcal}
+\def\min{\text{min}}
+\def\max{\text{max}}
+\def\pr{\text{Prob}}
+
+\def\rf{\text{refill}}
+\def\xf{\text{efflux}}
+\def\ef{\text{efflux}}
+\def\serca{\text{serca}}
+\def\leak{\text{leak}}
+\def\nsr{\text{nsr}}
+\def\sr{\text{sr}}
+\def\jsr{\text{jsr}}
+\def\ryr{\text{ryr}}
+\def\dhpr{\text{dhpr}}
+\def\LCC{\text{LCC}}
+\def\xfer{\text{xfer}}
+\def\ncx{\text{ncx}}
+\def\NCX{\text{NCX}}
+\def\rel{\text{rel}}
+\def\tr{\text{tr}}
+\def\up{\text{up}}
+\def\ds{\text{ds}}
+\def\myo{\text{myo}}
+\def\ca{{\text{Ca}}}
+\def\Ca{{\text{Ca}^{2+}}}
+\def\tCa{{\text{Ca}}}
+\def\bCa{\text{Ca,b}}
+\def\na{{\text{Na}}}
+\def\Na{{\text{Na}^{+}}}
+\def\k{{\text{K}}}
+\def\K{{\text{K}^+}}
+\def\mg{{\text{Mg}}}
+\def\Mg{{\text{Mg}^{2+}}}
+\def\buf{\text{buffer}}
+\def\dye{\text{dye}}
+\def\lig{\text{lig}}
+\def\CaD{\text{CaD}}
+\def\Calig{\text{Calig}}
+\def\Dt{{[\text{D}_T]}}
+\def\min{\text{min}}
+\def\max{\text{max}}
+\def\rest{\text{rest}}
+
+\def\emi{\text{em}}
+\def\ex{\text{ex}}
+\def\erf{\text{erf}}
+\def\CaF{\text{CaF}}
+\def\NaCa{{\text{Na}^+/\text{Ca}^{2+}}}
+\def\naca{{\text{Na/Ca}}}
+\def\NaK{{\text{Na}^+/\text{K}^{+}}}
+\def\Mg{{\text{Mg}^{2+}}}
+\def\stim{{\text{stim}}}
+\def\pmca{{\text{pmca}}}
+\def\CMDN{{\text{CaM}}}
+\def\CSQN{{\text{CSQ2}}}
+\def\Cm{{\text{C}_m}}
+\def\Csc{{\text{C}_\text{sc}}}
+\def\ni{{\text{Ni}}}
+\def\H{{\text{H}^+}}
+\def\Bi{{\text{B}_i}}
+\def\Bm{{\text{B}_m}}
+\def\Bs{{\text{B}_s}}
+\def\BT{{\text{B}_T}}
+\def\CaBs{{\text{CaB}_s}}
+\def\CaBm{{\text{CaB}_m}}
+\def\CaBi{{\text{CaB}_i}}
+\def\CaM{{\text{CaM}}}
+\def\CaSL{{\text{CaSL}}}
+\def\CaSR{{\text{CaSR}}}
+\def\tF{{\text{F}}}
+\def\cycle{{\text{cycle}}}
+\def\CF{{\text{CF}}}
+\def\open{{\text{open}}}
+\def\close{{\text{close}}}
+\def\ij{{ij}}
+\def\ji{{ji}}
+\def\difu{{\mu\text{m}^2.\text{s}^{-1}}}
+\def\NaX{{\text{NaX}}}
+\def\H{{\text{H}^+}}
+\def\MgADP{{\text{MgADP}}}
+\def\MgATP{{\text{MgATP}}}
+\def\Pi{{\text{Pi}}}
+\def\CaL{{\text{CaL}}}
+\def\Kr{{\text{Kr}}}
+\def\Ks{{\text{Ks}}}
+\def\Kp{{\text{Kp}}}
+\def\Kb{{\text{Kb}}}
+\def\si{{\text{si}}}
+
+\def\CaB{{\text{CaB}}}
+\def\htrpn{{\text{htrpn}}}
+\def\trpn{{\text{trpn}}}
+\def\B{{\text{B}}}
+\def\off{{\text{off}}}
+\def\on{{\text{on}}}
+\def\mol{{\text{mol}}}
+\def\atoms{{\text{atoms}}}
+\def\RyR{{\text{RyR}}}
+\def\nj{{\text{nj}}}
+\def\pR{{\text{pR}}}
+\def\cpl{{\text{cpl}}}
+\def\ii{{\text{(i)}}}
+\def\ryrnj{{\text{ryr,nj}}}
+\def\ion{{\text{ion}}}
+\def\ksat{{\text{ksat}}}
+\def\nsCa{{\text{ns(Ca)}}}
+\def\nsNa{{\text{ns(Na)}}}
+\def\nsK{{\text{ns(K)}}}
+\def\Am{{\text{Am}}}
+\def\NSFU{{\text{NSFU}}}  %number of CRUs
+\def\NGRID{{\text{NGRID}}} %number of grid points
+
+\def\myoT{{\text{myo}^T}}
+\def\nsrT{{\text{nsr}^T}}
+\def\cell{{\text{cell}}}
+\def\myo{{\text{myo}}}
+\def\norm{{\text{norm}}}
+\def\clamp{{\text{clamp}}}
+
+\def\muM{{\mu\text{M}}}
+\def\mum{{\mu\text{m}}}
+\def\mus{{\mu\text{s}}}
+\def\tot{{\text{tot}}}
+\def\base{{\text{base}}}
+\def\nadir{{\text{nadir}}}
+\def\peak{{\text{peak}}}
+\def\spark{{\text{spark}}}
+
+\def\refe{{\text{reference}}}
+
+\def\CaBhtrpn{{\text{CaBhtrpn}}}
+\def\app{{\text{app}}}
+\def\rev{{\text{rev}}}
+\def\muA{{\mu\text{A}}}
+
+\begin{document}
+\frontmatter
+
+
+% \textit{Hoang-Trong Minh Tuan}
+\setlength{\parskip}{0.5\baselineskip}
+Copyright \copyright 2010--\the\year\ Hoang-Trong Minh Tuan (George Mason
+University) \par Readers need author's permission to copy, distribute
+and\slash or modify this document. 
+
+\tableofcontents
+%\include{preface}
+
+\mainmatter
+
+
+\author{Tuan, Hoang-Trong}
+\title{Variables being used in simulation of ventricular cardiac cell}
+\date{Jun 2010}
+
+\include{General_settings}
+\include{Leak_model}
+\include{ECC_model}
+\include{Spatial_model}
+\include{Spatial_rogueRyR}
+\include{Spatial_AtrialCell}
+\include{Change_TodoList}
+\include{Data_IO}
+\include{Code_versions}
+\include{Code_convention}
+\include{Constants}
+\include{Data_analysis}
+\include{Plotting}
+\include{Spark_Analysis} 
+\include{Algorithms}
+
+\part{Modules}
+\include{makeKs_utility}
+\include{macro_h}
+
+\bibliographystyle{development} %The style you want to use for
+% references.
+%\bibliographystyle{harvard}
+% amsalpha, decsci, development, unsrtnat
+\bibliography{ref_codemanual} %The files containing all
+% the articles and books you ever
+% referenced. 
+
+\end{document} 
+
+
+%%% Local Variables: 
+%%% mode: latex
+%%% TeX-master: t
+%%% End: 

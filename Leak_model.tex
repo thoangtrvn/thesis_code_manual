@@ -1,0 +1,435 @@
+\chapter{Ca2+ leak }
+\label{sec:ca2+-leak-}
+
+\begin{verbatim}
+irow_R      (number of RyR-cluster states)                 [unitless]
+
+RyRgate     (number of RyRs open at each CRU)              [unitless]
+            array of size NSFU
+
+sfu_state   (keep index of current CRU state)              [unitless]
+            array of size NSFU (index in the range 1...irow_R)
+
+U_Ro        (vector that keeps the number of open RyRs     [unitless]
+            in each RyR-cluster states)
+            array of size irow_R
+
+# Ca2+-dependent transition C->O of RyR
+bigC(ii) = Ca_ds(ii)**eta_RyR                              [uM^eta_RyR]
+# allosteric coupling transition O->C of RyR
+chiC(ii)                                                   [unitless]
+           = EXP(-Ej*0.5d0*((N_R-RYRgate(ii))*Ecc - (RYRgate(ii)-1d0)*Eoo))
+# allosteric coupling transition C->O of RyR
+chiO(ii)                                                   [unitless]
+           = EXP(-Ej*0.5d0*(RYRgate(ii)*Eoo - (N_R-RYRgate(ii)- 1d0)*Ecc))
+
+# luminal regulation function, i.e. luminal Ca2+-dependent gating C->O of RyR
+phi(ii)                                                    [????]
+           = k_jsr0*Ca_jsr(ii) + k_jsr1
+\end{verbatim}
+
+\begin{equation}
+  \label{eq:18}
+  \begin{split}
+    &\cee{S_i <=>[k^+.[\ca_\ds\mathcal{]}^{\eta_\ryr}.\phi.\chi_O][k^-\chi_C]
+    S_j}
+    \\
+    &\phi = k_{\jsr,0} * [\Ca]_\jsr + k_{\jsr,1}    
+  \end{split}
+\end{equation}
+and
+\begin{equation}
+  \label{eq:24}
+  \begin{split}
+      \chi_C = \exp\left( -E_j\eta_{CO} (N_\close^{(\ryr)}.E_{CC} - (N_\open^{(\ryr)}-1)E_{OO}\right) \\
+      \chi_O =  \exp\left( -E_j\eta_{OC} (N_\open^{(\ryr)}.E_{OO} - (N_\close^{(\ryr)}-1)E_{CC}\right) 
+  \end{split}
+\end{equation}
+with $\eta_{CO} =\eta_{OC} = 0.5$.
+
+\section{Reversal potential}
+\label{sec:reversal-potential}
+
+\begin{verbatim}
+## ! Reversal potential
+E_Ca          (reversal potential of Ca2+ channel)         (mV)
+              = RT_F/zCa*LOG(Ca_o/Ca_myo)  
+\end{verbatim}
+Using Nernst equation
+\begin{eqnarray}
+  \label{eq:9}
+  E_\ca = \frac{RT}{z_\ca F}\log\frac{[\Ca]_o}{[\Ca]_\myo}
+\end{eqnarray}
+
+\section{Membrane ionic currents}
+\label{sec:membr-ionic-curr}
+
+{\bf Ionic currents}: \textcolor{red}{we refer to the ionic currents per unit membrane
+capacitance} (\verb!uA/cm^2!)
+
+\begin{verbatim}
+## Background currents density (inward)
+I_bCa       (background Ca2+ influx)                        [uA/cm^2]                                
+            = g_bCa*(Vm-E_Ca)
+# NOTE: (mS/cm^2).mV = uA/cm^2
+\end{verbatim}
+where
+\begin{eqnarray}
+  \label{eq:8}
+  I_\bCa &&= g_\bCa \times (V_m-E_\Ca) 
+\end{eqnarray}
+\begin{verbatim}
+
+## Ca2+ currents via sarcolemma pumps and Exchangers
+I_pmca      (extrude Ca2+ from myoplasm)                    [uA/cm^2]
+       = I_pmca_bar*(Ca_myo**eta_pmca/(Km_pmca**eta_pmca+Ca_myo**eta_pmca))
+Km_pmca     (Michaelis-Menten constant for PMCA)            (uM)
+            0.5d0
+
+\end{verbatim}
+\begin{equation}
+  \label{eq:10}
+    I_\pmca = \overline{I_\pmca}  \frac{([\Ca]_\myo)^{\eta_\pmca}}{(K_{m,\pmca})^{\eta_\pmca}+([\Ca]_\myo)^{\eta_\pmca}} 
+\end{equation}
+the pump use 1 ATP to pump $\eta_\pmca=2$ $\Ca$ ions out. 
+
+\begin{verbatim}
+I_ncx       (forward mode -> 3Na out : 1Ca in)              [uA/cm^2]
+            = I_ncx_bar*(Na_i**3 * Ca_o*EXP(eta_ncx*Vm*F_RT) - &
+               Na_o**3 *Ca_myo*EXP((eta_ncx-1d0)*Vm*F_RT))/ &
+               ((Km_ncxNa**3 + Na_o**3)*(Km_ncxCa+Ca_o)* &
+                 (1d0+ksat_ncx*EXP((eta_ncx-1d0)*Vm*F_RT)))
+# half-saturation constants
+Km_ncxNa    (Michaelis-Menten constant with Na+)            (uM)
+            =  87.5d3 uM
+Km_ncxCa    (Michaelis-Menten constant with Ca2+)           (uM)
+            = 1.38d3  uM
+ksat_ncx    (saturation factor to ensure saturation at 
+            ...very negative potential)
+            [unitless]
+            = 0.1d0 
+eta_ncx     (position of energy barrier that control Vm-dependent)
+            ... between 0 and 1.0                            [unitless]
+            = 0.35    
+\end{verbatim}
+\begin{equation}
+  \label{eq:11}
+    I_\ncx = \overline{I_\ncx}\frac{[\Na]_i^3 [\Ca]_o\exp(\eta_\ncx
+      V_mF/(RT)-[\Na]_o^3[\Ca]_\myo\exp((\eta_\ncx-1)V_mF/RT)}{(K_{m,\ncx
+        \na}^3+[\Na]_o^3)(K_{m,\ncx \ca}+[\Ca]_o)(1+\ksat_\ncx\exp((\eta_\ncx-1)V_mF/RT))} 
+\end{equation}
+
+\section{Fluxes}
+\label{sec:fluxes}
+
+\textcolor{red}{All fluxes are defined over $V_\myo^T$}. 
+
+\subsection{Trans-sarcolemmal fluxes}
+\label{sec:trans-sarc-flux}
+
+The flux of $\Ca$ across the sarcolemmal membrane is
+\begin{verbatim}
+J_Ca_sarmem = J_bCa - J_pmca - J_ncx
+            = (-I_bCa - I_pmca + zCa * I_ncx) * Am_2FVmyo  
+\end{verbatim}
+\begin{equation}
+  \label{eq:13}
+  J_{\Ca,sarmem} = (-I_\bCa - I_\pmca + z_\ca * I_\ncx)
+  \frac{Am}{z_\ca.F.V_\myo^T} 
+\end{equation}
+NOTE: The flux with positive sign
+\begin{equation}
+  \label{eq:35}
+  \begin{split}
+    J_\ncx &= -z_\ca \frac{A_m}{z_\ca FV_\myo^T} I_\ncx \\
+    J_\bCa &= -\frac{A_m}{z_\ca FV_\myo^T} I_\bCa \\
+    J_\pmca &= \frac{A_m}{z_\ca FV_\myo^T} I_\pmca 
+  \end{split}
+\end{equation}
+The NCX flux, in forward mode, basically increase 1 charge to
+intracellular (as 3Na in : 1 Ca out) , so the total current $I_\ncx$
+is inward and has negative size. However, the current of Calcium per
+se has 2 charges, and going out. So, the flux of calcium via NCX,
+denoted by $J_\ncx$ is defined by 2 times the total current $I_\ncx$
+and should be positive (i.e. adding minus in the front).
+
+\subsection{Internal fluxes}
+\label{sec:internal-fluxes}
+
+
+\begin{verbatim}
+# leak via network SR
+J_leak                                            (uM/sec)
+          = v_leak *(Ca_nsr - Ca_myo)
+\end{verbatim}
+\begin{equation}
+  \label{eq:14}
+  J_\leak = v_\leak ([\Ca]_\nsr - [\Ca]_\myo)
+\end{equation}
+
+
+\begin{verbatim}
+## \tilde{Ca}^2_i and \tilde{Ca}^2_sr 
+TCa_i2                                             [unitless]
+          = (Ca_myo/Kp_myo)**2
+TCa_sr2                                            [unitless]
+          = (Ca_nsr/Kp_nsr)**2
+dummy1                                             [unitless]
+        = (3.24873d12 * TCa_i2**2 + TCa_i2 * (9.17846d6 - 11478.2d0 *
+          TCa_sr2) - 0.329904d0 * TCa_sr2)
+dummy2    (D_cycle in this case)                   [sec]
+        = (0.104217d0 + 17.923d0 * TCa_sr2 + TCa_i2 *(1.75583d6 +
+           7.61673d6 * TCa_sr2) + TCa_i2**2 *(6.08463d11 + 4.50544d11
+           * TCa_sr2))  
+vp        (v_cycle: cycling rate per pump molecule)    [1/sec]
+          = dummy1/dummy2
+
+### Total Ca2+ flux into NSR via SERCA pump (uptake)
+# coupling ratio: 2 Ca2+ ions are transferred for each cycle
+cpl_serca = 2.0
+J_serca   = cpl_serca *vp*Ap                        (uM/sec)
+
+Ap       (concentration of SERCA pump on SR membrane)              (uM)
+          =  rho_sr * A_sr = 1.50d2         (uM)
+rho_sr   (density of SERCA per unit SR membrane area
+A_sr     (total SR membrane area)
+\end{verbatim}
+There is a large amount of SERCA protein present\citep{bers2001ecc}, about 15-75
+$\mu$mol/L Cyt (per litre cytosol) in cardiac ventricular cell. As the
+pump is able to bind a large amount of calcium, the buffering effect
+of the pump is significant \citep{higgins2006}.
+
+\begin{equation}
+  \label{eq:17}
+  J_\serca = \cpl\_\serca.v_p.A_p
+\end{equation}
+with $\cpl\_\serca$ is the coupling ratio of $\Ca$ transport via SERCA pump.
+
+\begin{verbatim}
+# leak via non-junctional RyRs
+J_ryr_nj_T   (total Ca2+ flux into myoplasm via nj-RyR)            (uM/sec)
+             = SUM(pR_nj, MASK=(U_Ro_nj .EQ. 1 )) * v_ryr_nj_T *
+               (Ca_nsr - Ca_myo) 
+\end{verbatim}
+\begin{equation}
+  \label{eq:16}
+  J_\ryr^T = \sum^{N_R}_{i=1} \pR^i_\nj .\RyR^i_\open .v_{\ryr,nj} ([\Ca]_\nsr-[\Ca]_\myo)
+\end{equation}
+with $pR^i_\open$ is the fraction of nj-RyR in $i$-th state,
+$\RyR^i_\open$ is 1 if the state $i$-th is open, and 0 otherwise;
+$v_{\ryr,\nj}$ is the transfer rate via nj-RyR channels. 
+
+\begin{verbatim}
+## low-affinity troponin is ignored
+## Flow in the direction of forming Ca-Htrpn compound
+J_trpn                                                            (uM/sec)
+       = kon_htrpn*Ca_myo*(B_htrpnT - CaB_htrpn) - koff_htrpn*CaB_htrpn 
+\end{verbatim}
+\begin{equation}
+  \label{eq:15}
+  J_\trpn = k^+_\htrpn [\Ca]_\myo([B]^T_\htrpn-[\CaB]_\htrpn) - k^-_\htrpn[\CaB]_\htrpn
+\end{equation}
+
+{\bf $\Ca$ bound to low-affinity and high-affinity buffer}
+\begin{verbatim}
+## Ca-bound high troponin compound 
+# initial concentration is calculated at equilibrium
+CaB_htrpn                                                    (uM)
+              = (Ca_myo * B_htrpnT) / ( koff_htrpn/kon_htrpn + Ca_myo)
+\end{verbatim}
+\begin{eqnarray}
+  \label{eq:1}
+  [\CaB_\htrpn] = \frac{[\Ca][\B_{\htrpn,T}]}{[\Ca]+K_{d,htrpn}}
+\end{eqnarray}
+
+\begin{verbatim}
+# then, at each time step
+# the flux in the direction of forming compound CaB_htrpn is
+J_trpn = kon_htrpn*Ca_myo*(B_htrpnT - CaB_htrpn) - koff_htrpn*CaB_htrpn
+\end{verbatim}
+\begin{eqnarray}
+  \label{eq:2}
+  \frac{d[\CaB_\htrpn]}{dt} = - k_\off[\CaB_\htrpn] + k_\on[\Ca][\B_\htrpn]
+\end{eqnarray}
+
+{\bf Inside each release site (CRU)}
+\begin{verbatim}
+## All fluxes are defined over V_myo_T
+J_ryr(ii) 
+            = RYRgate(ii)*v_ryr*(Ca_jsr(ii)-Ca_ds(ii))
+J_efflux(ii) = v_efflux*(Ca_ds(ii)-Ca_myo)
+J_refill(ii) = v_refill*(Ca_nsr-Ca_jsr(ii)) 
+\end{verbatim}
+\begin{equation}
+  \label{eq:19}
+  \begin{split}
+    J_\ryr^\ii &= N_\ryr^\open .v_\ryr.([\Ca]_\jsr^\ii-[\Ca]_\ds^\ii)\\
+    J_\ef^\ii &= v_\ef . ([\Ca]_\ds^\ii-[\Ca]_\myo) \\
+    J_\rf^\ii &= v_\rf . ([\Ca]_\nsr-[\Ca]_\jsr^\ii)
+  \end{split}
+\end{equation}
+
+\section{Transfer rates}
+\label{sec:transfer-rates}
+
+
+\begin{verbatim}
+## transfer rate at each CRU (defined based on V_myo_T, and the given
+#    number of CRUs: NSFU)
+v_refill, v_efflux, v_ryr                               [sec^-1]
+    v_refill = v_refill_T/dfloat(NSFU)
+    v_efflux = v_efflux_T/dfloat(NSFU)
+    v_ryr = v_ryr_T/dfloat(NSFU*N_R)
+# NOTE: In the spatial simulation, if we use a smaller cell volume
+#    we need to reduce the number of CRUs correspondingly to avoid
+#    adjusting these rates. For further detail, read spatial model.
+
+# assume the amount of nj-RyR is prcent_ryr_nj=5% of the total RyR in CRUs
+v_ryr_nj_T   (transfer rate of Ca2+ via all nj-RyR      [1/sec]
+             = v_ryr_T*prcent_ryr_nj
+\end{verbatim}
+
+
+
+\section{Ca dynamics}
+\label{sec:calcium-dynamics}
+
+
+The change of calcium in each CRU
+\begin{verbatim}
+## Ca_ds (use either of the 2 formula, the exact form requires dt .LE. 1d-7
+# exact formula
+Ca_ds(ii) = Ca_ds(ii) + dt*beta_ds/lambda_ds * (J_ryr(ii) - J_efflux(ii))
+# approximation
+Ca_ds(ii)  = (v_efflux*Ca_myo + ryrgate(ii) * v_1ryr *
+                 Ca_jsr(ii))/((ryrgate(ii)*v_1ryr+v_efflux)) 
+
+
+## Ca_jsr             
+Ca_jsr(ii) = Ca_jsr(ii) + dt*(beta_jsr/lambda_jsr) * (J_refill(ii) -
+                               J_ryr(ii))   
+\end{verbatim}
+\begin{equation}
+  \label{eq:28}
+  \left[ 
+    \begin{array}{l}
+      \frac{d[\Ca]_\ds^\ii}{dt} = \frac{\beta_\ds}{\lambda_\ds}(J_\ryr^\ii -
+      J_\ef^\ii )   \\
+      \text{[}\Ca]_\ds^\ii =      \frac{N_\open^{(\ryr)}v_\ryr[\Ca]_\jsr^\ii+v_\ef[\Ca]_\myo}{N_\open^{(\ryr)}v_\ryr+v_\ef} 
+    \end{array}
+\right.
+\end{equation}
+and
+\begin{equation}
+  \label{eq:29}
+  \frac{d[\Ca]_\jsr^\ii}{dt} = \frac{\beta_\jsr}{\lambda_\jsr}(J_\rf^\ii-J_\ryr^\ii)
+\end{equation}
+
+The change of global calcium 
+\begin{verbatim}
+Ca_nsr                                                   (uM)
+         = Ca_nsr + dt*((beta_nsr/lambda_nsr)  * (J_serca - J_leak -
+                            SUM(J_refill(:)) - J_ryr_nj_T)) 
+Ca_myo
+         = Ca_myo + dt*(beta_myo * (SUM(J_efflux(:)) + J_leak +
+                        J_Ca_sarmem + J_ryr_nj_T - J_serca - J_trpn))   
+\end{verbatim}
+\begin{equation}
+  \label{eq:22}
+  \begin{split}
+    \frac{d[\Ca]_\nsr}{dt} = \frac{\beta_\nsr}{\lambda_\nsr} (J_\serca
+    - J_\leak - J_\ryrnj - \sum^N_{i=1}
+    J_\rf^\ii)
+  \end{split}
+\end{equation}
+\begin{equation}
+  \label{eq:36}
+  \frac{d[\Ca]_\myo}{dt} = \beta_\myo (-J_\serca + J_\leak +
+  J_{\ryr,\nj}^T + J_{\ca,sarmem} + \sum^N_{i=1} J_\ef^\ii)
+\end{equation}
+
+No other ions are considered dynamics.
+
+\section{GPU - leak}
+\label{sec:gpu-leak}
+
+Matrices need to be on GPU
+\begin{verbatim}
+## matrices of rate transition and its indices
+# 0-th column = keep true number of non-zero elements in the row
+# 1st column  = keep rate transition for state unchanged
+    ALLOCATE(compKm_dev(0:maxnklm, NUM_STATES_SFU), indexKm_dev(maxnklm, NUM_STATES_SFU))
+    ALLOCATE(compKp_dev(0:maxnklp, NUM_STATES_SFU), indexKp_dev(maxnklp, NUM_STATES_SFU))
+    ALLOCATE(compPdt_dev(NSFU, maxnklm+maxnklp-1), indexPdt_dev(NSFU,
+maxnklm+maxnklp-1))
+
+# vectors that keep the # of open RyRs in each SFU state
+#                   index of the current SFU state at each CRU
+#                   # of open RyRs of the current state at each CRU
+    ALLOCATE(U_Ro_dev(NUM_STATES_SFU),  sfu_state_dev(NSFU), ryrgate_dev(NSFU))
+
+## vectors of [Ca]_ds, [Ca]_jsr
+    ALLOCATE(Ca_ds_dev(NSFU), Ca_jsr_dev(NSFU), PINNED=plog)
+
+# vectors of fluxes at all CRUs
+    ALLOCATE(J_efflux_dev(NSFU))
+    ALLOCATE(J_refill_dev(NSFU))
+
+# Pseudo-RNs
+   X_dev
+
+\end{verbatim}
+
+
+
+
+
+
+\section{Data I/O - HDF5}
+\label{sec:leak_hdf5}
+
+The data is organized in multiple HDF5 files. Each file contains a single
+dataset /LEAK. Each dataset contain a number of record (read from paramfile).
+Each record is a vector with elements starting from the first one to the last is
+\begin{verbatim}
+time, Vm, Cmyo, isfu_state1..NSFU, Cnsr, Cds1..CdsNSFU, Cjsr1..CjsrNSFU,
+gating_variables (11), p_nj
+\end{verbatim}
+
+The file is named incrementally, e.g.
+\verb!data-001.h5!
+\begin{verbatim}
+WRITE(file_out, "(a,'/data-', i3.3,'.h5')") TRIM(where2save), file_index 
+\end{verbatim}
+A file is created using
+\begin{verbatim}
+CALL hdf_open_simple(file_out, NSFU, CHUNK_SIZE, CHUNKS_PER_FILE, 
+                    file_struct,
+                    FIELDS_PER_RECORD)
+\end{verbatim}
+Data is written out using 
+\begin{verbatim}
+CALL hdf_write_simple(file_struct, data_buffer, CHUNK_SIZE, FIELDS_PER_RECORD)
+\end{verbatim}
+and file is closed using
+\begin{verbatim}
+CALL hdf_spark_close(file_struct)
+\end{verbatim}
+
+
+
+\section{Tests}
+\label{sec:leak_tests}
+
+\subsection{2 set of RyR clusters; one large (49) and one small (8 or 16)}
+\label{sec:leak_tests_hetero}
+
+\begin{verbatim}
+##unconventional simulation
+# test for 2 groups of CRUs: one with fewer RyR
+# 
+N_R_small                                               [unitless]
+NSFU_bigRyR
+NSFU_smallRyR
+\end{verbatim}
+

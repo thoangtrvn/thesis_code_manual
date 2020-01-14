@@ -1,0 +1,157 @@
+\chapter{Plotting code for Data analysis}
+
+The code is written in IDL. Timeline
+\begin{enumerate}
+  \item Before Oct, 31: the main plot function can be 
+  \begin{verbatim}
+  main_plot.pro
+  main_plotspark.pro
+  main_plotspark_sep19.pro
+  main_plotspark_oct6.pro
+  \end{verbatim}
+  \item From Nov, 1st, 2012: the main plot function is 
+  \begin{verbatim}
+  main_plot_nov01.pro
+  \end{verbatim}
+  The new feature is plotting ionic currents-time, and $V_m$-time plots.
+\end{enumerate}
+
+At first, we need to add search path. Here we use Coyote IDL Library and
+Astronomy IDL library
+\begin{verbatim}
+SEARCH_PATH = Expand_Path('+~/Projects/coyote_library_1.10.0') + $
+  ':<IDL_DEFAULT>'+':./:'+ Expand_Path('+~/Projects/astron/pro/') + $ 
+  ':' + Expand_Path('+~/Projects/idl_routines/') 
+pref_set, 'IDL_PATH', SEARCH_PATH, /COMMIT
+\end{verbatim}
+
+
+Define global variables in different COMMON group-names
+\begin{verbatim}
+COMMON block_paramfiles, NSFU, N_R, N_L, mL, mR, $
+     V_rest, V_stim, I_stim, t_start, t_end, $
+     t_V_stim_start, t_V_stim_end, t_I_stim_start, t_I_stim_end, $
+     Hz, write_interval, $ ;Na_i, K_i,
+     Ca_myo, Ca_nsr, $
+     zF, zR, zT, Na_o, Ca_o, K_o, V_myo_T, V_nsr_T, $
+     V_jsr_T, V_ds_T, beta_ds, beta_nsr, B_myoT, $
+     B_jsrT, Km_myo, Km_jsr, B_htrpnT, kon_htrpn, $
+     koff_htrpn, v_refill_T, v_efflux_T, v_leak, $
+     v_ryr_T, P_dhpr_T, prcent_ryr_nj, prcent_dhpr_nj, $
+     Ap, Kp_myo, Kp_nsr, g_bCa, g_Na, g_K1, $
+     g_Kss, g_Ktof, g_Ktos, g_bNa, g_bK, $
+     Am, Csc, I_pmca_bar, I_ncx_bar, I_NaK_bar, $
+     eta_RyR, eta_LCC, Ej, Ecc, Eoo, k_jsr0, $
+     k_jsr1, V_theta1, V_sigma1, V_theta2, V_sigma2, $
+     cell_x_len, cell_y_len, cell_z_len, dX_, dY_, dZ_, $
+     Dmyo_x, Dmyo_y, Dmyo_z, Dnsr_x, Dnsr_y, Dnsr_z, $
+     lspacing, tspacing, dist2membrane, dist2rogueRyR, $
+     dist2membraneX, dist2membraneYZ, $  
+     num_rogueRyR, Ddye_x, Ddye_y, Ddye_z, F_T, kon_F, koff_F, $
+     write_firstbeat, duration_write_lastbeats, write_restartfile, kR12, $
+     N_R_rogue, i_1ryr, caf_factor
+COMMON block_deriveddata, zCa, eta_PMCA, Km_pmca, eta_NCX, $
+     Ksat_ncx, Km_ncxNa, Km_ncxCa, cpl_serca, RT_F, F_RT, RT_FzCa, $
+     P_dhpr, V_ds, V_jsr, lambda_ds, lambda_jsr, lambda_nsr, $
+     inv_lambda_ds, inv_lambda_jsr, inv_lambda_nsr, Acap, $
+     Am_2FVmyo, Am_FVmyo, v_refill, v_ryr, v_ryr_nj_T, P_dhpr_nj, $
+     F2zCa2_RT, FzCa_RT, invKp_myo, invKp_nsr, inv_2FVmyo, $
+     NUM_STATES_NJ, NUM_STATES_LCCs, NUM_STATES_RyRs, $
+     ULo, ULc, ULr, ULi, ULa, ULo_nj, URc, URo, NSFU_normal, Kd_F
+  ; CRU_ID = index of the CRU to plot in spatial_singlespark
+  ; base_filename = base filename of data to read ('cmyo-', 'cnsr-', 'CaF-')
+COMMON block_globalvars, MAX_NUM_DATASET_PER_GROUP, CRU_ID, $
+     STENCIL_RADIUS, x_stride, y_stride, z_stride, x_safe, y_safe, $
+     z_safe, glob_flag_write2png, base_filename
+COMMON block_datafolder, target_folder, root_dir, username, sub_folder
+COMMON block_greekchar, char_mu, char_delta, char_bigDelta
+COMMON block_tekcolor, black_col, red_col, blue_col, green_col, cyan_col, magenta_col
+  ;; variables that keeps information of plot positions and settings
+COMMON block_plotsystem, plots_sysp, plots_sysx, plots_sysy, plots_loc, time_range, text_pos_x, text_pos_y, main_string
+\end{verbatim}
+NOTE:
+\begin{enumerate}
+  \item \verb!i_1ryr, caf_factor!: added Sep, 21, 2012
+  
+\end{enumerate}
+
+Initial values setting
+\begin{verbatim}
+  black_col = 0
+  red_col = 2
+  blue_col = 4
+  green_col = 3
+  cyan_col = 5
+  magenta_col = 6
+  
+  MAX_NUM_DATASET_PER_GROUP = 100
+  STENCIL_RADIUS = 1
+  glob_flag_write2png = 0
+  glob_file_index = 0 ;; starting index of data files
+  username = 'minhtuan'
+  main_string = []
+  param_file = 'parameters.conf'
+  root_dir = '/leak1/'
+  target_folder =  'tscell_rogue_2012jun21i'
+  sub_folder = ''  ; or 'firstbeat' (a subfolder inside the target_folder)
+  CRU_ID = 3
+  ;;; the typical pixel size is 0.14um x 2ms
+  ;;; i.e. 
+  pixel_resolution = 0.14d0      ; um (0.14um)
+  scanningtime_interval = 0.5d0  ;; ms (default: 2.0)
+\end{verbatim}
+
+The main function to call is \verb!main_plotspark!, but we should make new copy,
+adding the date and the description for what type of analysis being called in
+the file.
+
+\section{Make line-scan image}
+
+We have 4 versions, all using PSF in 3D, and the result is CaF
+\begin{verbatim}
+make_linescan_image_psf3d
+make_linescan_image_psf3d_v2
+make_linescan_image_psf3d_v3
+make_linescan_image_psf3d_v4
+\end{verbatim}
+
+We can also make line-scan image for free calcium using (not sure about PSF
+2D/3D???)
+\begin{verbatim}
+make_linescan_image_cmyo
+\end{verbatim}
+
+\section{Analyze rogue - normal cluster}
+
+\verb!SpatialCell_GPU_branch2_smallcluster_0.20um/plot_code/!
+
+In the case of triggering normal CRU and analyze rogue RyRs, we use
+\begin{verbatim}
+analyze_rogueryr
+\end{verbatim}
+
+In the case of triggering rogue RyR and analyze normal CRU, we use
+\begin{verbatim}
+analyze_rogueryr_triggerrogue
+\end{verbatim}
+
+
+\section{Read-in Data}
+
+\subsection{read\_hdf\_regular}
+\label{sec:read_hdf_regular}
+
+\verb!read_hdf_regular! 
+\begin{verbatim}
+pro read_hdf_regular, hdf_filename=hdf_filename, type=type                                                                                                                                                 
+  ;; type can be 'general', 'sfu-state', 'cds', 'cjsr'    
+\end{verbatim}
+
+This is later renamed to \verb!parse_hdf_regular!
+(Sect.\ref{sec:parse_hdf_regular}).
+
+\subsection{parse\_hdf\_regular}
+\label{sec:parse_hdf_regular}
+
+This is the newer version of Sect.\ref{sec:read_hdf_regular}.
+

@@ -1,0 +1,275 @@
+\chapter{Macro file (macro.h)}
+
+The file macro.h defines some pre-processing flags to determine what to compile
+in the code. 
+
+\section{General macro names}
+
+\begin{enumerate}
+  \item Any binary flag use the two values below
+
+\begin{verbatim}
+#define _YES 1
+#define _NO 0 
+\end{verbatim}
+
+\item What GPU to use
+\begin{verbatim}
+#define _TESLA  1
+#define _FERMI  2
+#define _GPU_MODEL_ _FERMI
+\end{verbatim}
+
+\item Data I/O method
+\begin{verbatim}
+  ! DATA TRACKING MODE
+  !   0 = no I/O
+  !   1 = testing purpose
+  !   2 = (spatial or non-spatial) HDF files;
+  !   3 = text files (all)
+  !   4,5 = spatial output
+  !   6 = write out restart file and the last second
+  ! NOTE: restart file is written out in all cases, except _IO_NONE
+  !   7 = (non-spatial) multiple datasets/file (time-Vm, Cads, Cajsr...)
+  !   8 = (spatial) HDF whole-cell
+#define _IO_NONE  0
+#define _IO_TEST  1
+#define _IO_2_HDF  2
+#define _IO_2_ASCII  3
+#define _IO_2_SILO_3D 4 
+#define _IO_2_SILO_SLICE 5
+#define _IO_RESTART_FILE 6
+#define _IO_2_HDF2 7
+#define _IO_2_HDF3D 8      
+      !!!!example:#define _DATAMODE_  _IO_2_SILO_SLICE
+      
+      ! COMPUTATIONAL MODE (work for DATAMODE=1)
+      !    0 - print nothing, except the simulation
+      !   -1 - print ALL (except number 4)
+      !    1 - print [Ca_ds], [Ca_jsr], nRo, nLo
+      !    2 - print I_dhpr_T (L-type current)
+      !    3 - print fraction of channels in each of the 6 L-type state
+#define _COMPMODE_  1
+\end{verbatim}
+
+\item What pseudo-random number generator (PRNG) to use
+\begin{verbatim}
+
+  ! Method for PRNG
+  ! SARU = generate on GPU directly
+  ! MT = generate MT on GPU directly
+  ! NOTE: only use SARU for now 
+#define _PRNG_SARU 1
+#define _PRNG_MT 2
+#define _PRNG_MTCPU 3
+#define _PRNG_CURAND 4
+!#define _USE_PRNG_ _PRNG_SARU
+\end{verbatim}
+
+
+\item Safe mode
+\begin{verbatim}
+      ! perform all data check
+      ! (may slow, as data validation is performed)
+#define _SAFE_MODE_ _NO
+\end{verbatim}
+
+\item Simulation mode
+\begin{verbatim}
+      ! 0 = closed-cell (no ion in/out)
+      ! 1 = Voltage-clamp
+      ! 2 = Current-clamp
+      ! 3 = restin
+#define _MODE_CLOSEDCELL 0      
+#define _MODE_V_CLAMP 1
+#define _MODE_I_CLAMP 2
+#define _MODE_RESTING 3      
+!#define  _RUNMODE_  _MODE_V_CLAMP
+\end{verbatim}
+
+
+\item Display mode
+\begin{verbatim}
+      ! 0 = no graphics
+      ! 1 = use CUDA/OpenGL (only Fermi)
+      ! 2 = use OpenGL
+      ! 3 = use VisIt
+#define _DISP_NO 0
+#define _DISP_CUDA_OPENGL  1
+#define _DISP_OPENGL  2
+#define _DISP_VISIT    3  
+#define _USE_DISPLAY_ _DISP_NO
+\end{verbatim}
+NOTE: Not being used 
+
+\item Analyze what? 
+\begin{verbatim}
+   ! how many sparks/quarks
+_ANALYZE_SPARKS_ _NO
+   ! calculate integral SR flux per second
+_ANALYZE_SL_CALCIUM_FLUX_ _YES
+   ! calculate integral SR flux per second
+_ANALYZE_SR_CALCIUM_FLUX_ _YES
+   ! analyze GAIN/APD90/APD50/APD20
+   !V-clamp: GAIN (INTEGRAL_GAIN, PEAK_GAIN)
+   !I-clamp: APD90/APD50/APD20 
+_ANALYZE_ECC_ _YES
+\end{verbatim}
+
+\end{enumerate}
+
+\section{Macro names only in compartmental model}
+
+
+To avoid confusing in modifying the macros, there are several macro.h files were
+created. Each one were designed for a particular purpose. For example: 
+\begin{enumerate}
+  \item \verb!macro.h_Iclamp! : is for I-clamp purpose
+  \item \verb!macro.h_rest! : is for resting (quiescent) simulation
+\end{enumerate}
+Sometimes, to avoid the booming of number of macro names, you also need to
+modify the code at some part to work for that macro.h file. In the beginning of
+the macro.h file, there is a description for what to change. Example: 
+\verb!macro.h_blockSR! is designed to balance SL calcium flux, while blocking SR
+calcium. The goal of this simulation is to find the proper value for
+\verb!g_bCa!. Currently, it's very hard to balance K+, Na+ and Ca2+ at the same
+times. 
+
+\begin{enumerate}
+\item Scale or not
+\begin{verbatim}
+      ! scaling will allow testing the code using a smaller number of CaRU
+      ! that give results similar to 20,000 CaRU
+#define _USE_SCALING_MODE_  _YES
+\end{verbatim}
+
+ 
+\end{enumerate}
+
+
+
+
+\section{Macro names in spatial code}
+
+For spatial code, we use
+\begin{enumerate}
+\item Analyze what? (spatial model)
+\begin{verbatim}
+_MODE_CHECK_BALANCING_BLOCKED_SR
+_MODE_CHECK_BALANCING_BLOCKED_SL
+\end{verbatim}
+
+\item How 3D array are defined: using linear form or in 3D form
+\begin{verbatim}
+#define _LINEAR_FORM 1
+#define _3D_FORM 2
+  ! use linear form for now
+!#define _MEMORY_LAYOUT_ _LINEAR_FORM
+\end{verbatim}
+Currently, we only support linear form.
+
+\item How we map grid points to threads in kernel
+\begin{verbatim}
+  ! decide how to manipulate
+#define _1THREAD_1ELEMENT 1
+#define _1THREAD_1DEPTHCOLUMN 2  
+!!#define _GRID_STRATEGY_ _1THREAD_1ELEMENT
+\end{verbatim}
+Currently, we use 1 thread process 1 grid point. A better way is to use one
+thread process one column. To be supported later.
+
+
+\item How we arrange CRU in the spatial grid
+\begin{verbatim}
+  ! 1 = try to put CRUs as all possible "valid" positions
+  ! 2 = put CRUs until it reaches the specified NSFU
+  ! 3 = arrange CRUs, each has one or a few rogue RyRs 
+  !     (check testspatialdata_file.txt)  
+#define _CRU_UNIFORM 1
+#define _CRU_UPTO_NSFU 2
+#define _CRU_UNIFORM_WITH_ROGUE_RYR 3
+#define _CRU_NONUNIFORM 4
+#define _CRU_NONUNIFORM_WITH_ROGUE_RYR 5
+!!!#define _ARRANGE_CRU_ _CRU_UPTO_NSFU
+\end{verbatim}
+
+NOTE: Rename
+\begin{verbatim}
+_CRU_UNIFORM_WITH_SMALL_RYR --> _CRU_UNIFORM_WITH_ROGUE_RYR
+\end{verbatim}
+
+\item Simulation type
+\begin{verbatim}
+      ! type 1 = trigger half of the number of the CRUs
+      ! type 2 = increase the opening probability  of all CRUs 
+      !          (adjust luminal calcium gating function)  
+#define _CAFFEINE_TYPE1 1 
+#define _CAFFEINE_TYPE2 2
+#define _TRIGGER_RYR_CRU 3       !open a few (about 8) for a few time-steps
+#define _TRIGGER_RYR_ROGUE 4      
+#define _TRIGGER_LCC 5           !open 1 LCC for 0.5ms
+#define _FLASHING_CALCIUM 6      !set a region of NSR with high calcium and
+                                 !releasing it
+#define _TRIGGER_RYR_2ADJACENT_CRUS ! use for macrospark simulation
+    !the goal is to show that macrospark can only be the result of coactivation
+    of two adjacent CRUs, not the calcium diffusion
+    ! here we trigger CRU=3, and then CRU=4 given that CRU3 and CRU4 are
+    !adjacent to each other on adjacent Z-line
+#define _TRIGGER_RYR_ROGUE_MIDDLE 8  !use with trigger_rogue_RYR_4()
+    ! assuming each CRU has 3 rogueRYR clusters, it trigger the one in the
+    ! center to see how it can trigger the other ones, including the CRU
+    
+      !#define _EMULATE_CONDITION_ _CAFFEINE_TYPE1
+\end{verbatim}
+In case we choose \verb!_TRIGGER_RYR_CRU! or \verb!_TRIGGER_LCC!, we have a
+sub-option to choose triggering one or all CRUs (added Sep,21,2012)
+\begin{verbatim}
+      ! use with _NUM_CRU_2_TRIGGER
+      ! in case we use _TRIGGER_RYR_CRU, we can choose to trigger all
+      ! or only CRU=3 only
+#define _CRU3_TRIGGERED 1
+#define _CRUS_ALL_TRIGGERED 2
+\end{verbatim}
+
+
+\item Boundary condition
+\begin{verbatim}
+#define _NEUMANN_COND 2
+#define _DIRICHLET_COND 1
+#define _ROBIN_COND 3
+!#define _BOUNDARY_CONDITION_ _NEUMANN_COND      
+\end{verbatim}
+
+\item The reference volume
+
+\begin{verbatim}
+#define _V_MYO_TOTAL_REALCELL 1
+#define _V_MYO_TOTAL_TESTCELL 2            
+#define _V_MYO_GRIDPOINT 3
+!#define _MAP_CONCENTRATION_ _V_MYO_GRIDPOINT
+
+_V_MYO_TOTAL_REALCELL maps concentration to the real cell volume 
+  of rat ventricular myocyte, i.e. 36pL
+_V_MYO_TOTAL_TESTCELL maps concentration to the cell volume
+  being used in the simulation
+_V_MYO_GRIDPOINT concentration to the single grid point, e.g.
+  0.2^3 (um^3)
+\end{verbatim}
+It's default to use \verb!_V_MYO_GRIDPOINT!.
+
+
+\end{enumerate}
+
+\section{Removed macro names}
+
+NO LONGER used macro
+\begin{enumerate}
+  \item Moved to the \verb!testspatialdata_file.txt!
+  \begin{verbatim}
+  #define _0_SMALL_RYRS 1
+#define _1_SMALL_RYRS 2
+#define _3_SMALL_RYRS 3
+#define _6_SMALL_RYRS 4
+!#define _ADD_SMALL_RYRS_ _3_SMALL_RYRS
+  \end{verbatim}
+\end{enumerate}

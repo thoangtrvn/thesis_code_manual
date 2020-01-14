@@ -1,0 +1,18 @@
+\chapter{data\_ecc.f95}
+
+\section{init\_SFU\_state}
+\label{sec:init_SFU_state}
+
+\begin{verbatim}
+SUBROUTINE init_SFU_state(N_L, mL, Mbig, U_Ro, irow_R, sfu_state)
+
+N_L = num DHPR
+mL  = num Markov-chain state DHPR
+Mbig = num CRU states ( = irow_R * irow_L)
+U_Ro = vector tells number of opening RyR in each state 1..Mbig
+irow_R = number of states in RyR cluster per se
+sfu_state [output] = receive state-indices (vector of length 1..NSFU)
+\end{verbatim}
+
+For spatial code, where rogue RyR clusters is considered, we need to use
+\verb!init_SFU_state_with_small_RyR!.

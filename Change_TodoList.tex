@@ -1,0 +1,350 @@
+
+\chapter{Updates/Plans}
+\label{sec:updates}
+
+\section{Update parameter file}
+\label{sec:parameter-file}
+
+change parameter files:
+\begin{enumerate}
+
+\item  substitute \verb!v_ryr_nj!
+\begin{verbatim}
+replace v_ryr_nj --> prcent_ryr (i.e. 5% or 0.05)
+\end{verbatim}
+
+\item substitute \verb!P_dhpr_nj!
+\begin{verbatim}
+replace P_dhpr_nj --> prcent_dhpr-nj (i.e. 10% or 0.1)
+\end{verbatim}
+
+
+\item substitute \verb!P_dhpr_T!
+\begin{verbatim}
+replace P_dhpr_T --> i_1dhpr
+\end{verbatim}
+and add scaling macro \verb!_USE_SCALING_MODEL_! to determine whether
+scaling is used or not. 
+
+\item add 3 parameters after \verb!t_end! and before \verb!dt_LB! (Jan, 14,
+2012)
+\begin{verbatim}
+0.0d0         first_beat I/O (0=No / 1=Yes)
+2.0d0         last_beats I/O (duration) [sec]
+0.0d0         use_restart_file (0=No / 1=Yes)
+\end{verbatim}
+then, data mode \verb!_IO_RESTART_FILE! is removed. 
+\end{enumerate}
+
+\subsection{Affect leak model}
+\label{sec:affect-leak-model}
+
+\begin{enumerate}
+\item change the name for specific membrane capacitance
+\begin{verbatim}
+Cm --> Csc
+\end{verbatim}
+as Cm will be used for whole-cell membrane capacitance.
+
+\item change variables for buffering fractions (to discriminate with buffer
+  concentration \verb!B_myoT!...)
+\begin{verbatim}
+B_ds --> beta_ds  
+B_nsr --> beta_nsr
+B_myo --> beta_myo
+B_jsr --> beta_jsr
+\end{verbatim}
+
+
+
+\item change variable
+\begin{verbatim}
+! to indicate total ryr_nj transfer rate, not a single channel
+v_ryr_nj --> v_ryr_nj_T
+\end{verbatim}
+
+
+\item change variable (to discriminate half-saturation constant Km vs. dissociation
+  constant Kd)
+\begin{verbatim}
+Kd_myo --> Km_myo
+Kd_jsr --> Km_jsr
+\end{verbatim}
+
+\item change volume ratio variables
+\begin{verbatim}
+lambda1 --> lambda_ds
+lambda2 --> lambda_jsr
+lambda  --> lambda_nsr
+\end{verbatim}
+
+\item change variable
+\begin{verbatim}
+Mbig --> NUM_STATES_SFU
+\end{verbatim}
+
+\item Automatically renames all parameters to ``parameter.conf'' so that it's
+easier to read code in IDL.
+\begin{verbatim}
+CHARACTER(MAX_FILENAME) :: default_param_filename = 'parameters.conf'
+\end{verbatim}
+
+\item The variable \verb!ID_logfile! is replaced by \verb!log_string! and call
+to \verb!write2log(log_string)!. 
+\end{enumerate}
+
+\subsection{Affect EC-coupling}
+\label{sec:ec-coupling-1}
+
+\begin{enumerate}
+\item Move vv1, vv2 to \verb!Vm_dependent.inc! file, and add to the
+  code via
+\begin{verbatim}
+INCLUDE "Vm_dependent.inc"
+\end{verbatim}
+
+
+\item Change the variables for random numbers
+\begin{verbatim}
+X     --> X_r
+X_dev --> X_r_dev
+\end{verbatim}
+
+
+\item move \verb!sfu_state! to file: \verb!data_ecc.f95!
+
+\item rename vv1, vv2
+\begin{verbatim}
+vv1 --> kva
+vv2 --> kvi
+\end{verbatim}
+
+
+\item name change
+\begin{verbatim}
+isfu --> current_state_sfu --> sfu_state
+isfu_dev --> current_state_sfu_dev --> sfu_state_dev
+\end{verbatim}
+
+\item change maxnk\ldots (with new algorithms)
+\begin{verbatim}
+maxnkv1 --> lcc_Ncol_Kv_act
+maxnkv2 --> lcc_Ncol_Kv_inact
+maxnkp1 --> lcc_Ncol_Kcal_inact
+maxnkm1 --> lcc_Ncol_Kfree
+maxnkm2 --> ryr_Ncol_Kfree
+maxnkp2 --> ryr_Ncol_Kcal_act
+\end{verbatim}
+
+\item change \verb!sfu_state! 
+\begin{verbatim}
+sfu_state --> CRU_states
+\end{verbatim}
+
+\item change idxK, compK \ldots 
+\begin{verbatim}
+compKv1 --> lcc_compKv_act
+compKv2 --> lcc_compKv_inact
+compKp1 --> lcc_compKcal_inact
+compKm1 --> lcc_compKfree
+compKm2 --> ryr_compKfree
+compKp2 --> ryr_compKcal_act
+       
+idxKv1 -->  lcc_indxKv_act
+idxKv2 --> lcc_indxKv_inact
+indxKm1 --> lcc_indxKfree
+idxKm2 --> ryr_indxKfree
+indxKp1 --> lcc_indxKcal_inact
+indxKp2 --> ryr_indxKcal_act
+\end{verbatim}
+
+\item move \verb!init_GPU()! from \verb!data_global.f95! to
+\verb!cuda_interop.f95!
+
+\item move \verb!mL, mR! to the 2 new parameter files
+
+\item rename \verb!is_Clamped! to \verb!is_being_clamped!
+
+\item rename (to match with the similar function in spatial code) [2012-Nov-20]
+\begin{verbatim}
+updateSystem_2 --> update_SFU_2
+updateSystem_2b --> update_SFU_2b
+\end{verbatim}
+\end{enumerate}
+
+\subsection{Affect Spatial model}
+\label{sec:affect-spatial-model}
+
+\begin{enumerate}
+\item Remove \verb!inv_RT_F!, the equivalent to use is \verb!F_RT!
+\item Diffusion is now allows to be anisotropic at both calcium-bound
+fluorescence and fluorescence with \verb!D_F! and \verb!D_CaF! are replaced by 
+\begin{verbatim}
+ REAL(KIND=dp), constant :: D_Fx, D_Fy, D_Fz, D_CaFx, D_CaFy, D_CaFz
+\end{verbatim}
+
+\item SFU is replaced by CRU as SFU refer to a functional group of RyRs only.
+CRU refers to a fusion of RyR and LCCs. 
+\begin{verbatim}
+init_SFU_state --> init_CRU_state
+sfu_state --> CRU_state
+\end{verbatim}
+
+\item Rename
+\begin{verbatim}
+some_caffeinedump_CRU_notfullyOpen --> some_caffeineBound_CRU_notfullyopen
+num_timesteps_before_setting_allchannels_open --> num_timesteps_holdingchannels
+\end{verbatim}
+
+\item Rename 
+\begin{verbatim}
+_CRU_UNIFORM_WITH_SMALL_RYR --> _CRU_UNIFORM_WITH_ROGUE_RYR
+\end{verbatim}
+
+\item Rename [2013-Jan-29]
+\begin{verbatim}
+put_SFU2grid3D_homo           --> put_SFU2grid3D_uniform
+put_SFU2grid3D_homo_rogue_RYR --> put_SFU2grid3D_uniform_rogue_RYR
+\end{verbatim}
+\end{enumerate}
+
+% \item change parameter files: 
+% \begin{verbatim}
+% replace v_ryr_T --> i_1ryr (current single ryr channel)
+% \end{verbatim}
+
+% \item change $zCa$ to \verb!z_Ca!
+% \begin{verbatim}
+% zCa -> z_Ca
+% zNa -> z_Na
+% zK  -> z_K
+% \end{verbatim}
+
+% \item change zF to \verb!frdy! (Faraday constant)
+
+% \item change zR to \verb!uniR! (universal gas constant)
+
+%\end{enumerate}
+
+\subsection{Affect Spatial Model with neighboring cluster}
+
+\begin{enumerate}
+  \item \verb!stride2smallRyR! is replaced by \verb!stride2rogueRyR!
+  \item The macro name \verb!_ADD_SMALL_RYRS_! is replaced by a read-in value in
+  the parameter file \verb!testspatialdata_file.txt!
+  \begin{verbatim}
+ 6.0000E+0      num rogue RyR-neighbors (0,1,2,3,6)
+ 5.0000E+0      num RyRs in rogue cluster
+  \end{verbatim}
+  
+  \item \verb!stride2rogueRyR! is extended and replaced by 6 variables
+  \begin{verbatim}
+  stride2rogueRyR_x_up, stride2rogueRyR_x_down
+  stride2rogueRyR_y_left, stride2rogueRyR_y_right
+  stride2rogueRyR_z_front, stride2rogueRyR_z_back
+  \end{verbatim}
+  The reason is that subspace is not a the same in all dimension but has the
+  following dimension 15nm x 200 nm x 350nm. 
+  
+  \item The following code is removed from branch 2 version
+  \begin{verbatim}
+INTEGER, DIMENSION(:), ALLOCATABLE ::  index_CRUstate_numRyRopen  ! CRUstate index where #openRyR is 1, 2, ... N_R
+INTEGER, DIMENSION(:), ALLOCATABLE ::  index_rogueRyR_numRyRopen  ! index where #openRyR is 1, 2, ... N_R_small
+  \end{verbatim}
+  
+  
+  \item \verb!dist2rogueRyR! tell the distance from
+  center-CRU to the satellite RYR cluster (old-name: \verb!dist2smallRYR!,
+  \verb!dist2satelliteRYRs!) [2014-Apr-18]
+\end{enumerate}
+
+\section{Plans}
+\label{sec:plans}
+
+\begin{enumerate}
+  \item create the reference volume Vol$_{ref}$ which is assigned to $V_\myo^T$
+  by default, and then replace 
+  \begin{verbatim}
+  Am_2FVmyo    ---> Am_2FV
+  Am_FVmyo     ---> Am_FV
+  inv_2FVmyo   ---> inv_2FV
+  \end{verbatim}
+\item (parameter file)  remove if not in used
+\begin{verbatim}
+V_theta2
+V_sigma2
+\end{verbatim}
+
+\item (parameter file) remove Ej as it can be calculated from \verb!N_R!. 
+\begin{verbatim}
+Ej =1/(sqrt(N_R)*(sqrt(N_R)-1))((sqrt(N_R)-2)^2*4+(sqrt(N_R)-2)*4*3+4*2)
+\end{verbatim}
+
+
+\item Add junctional NCX  \verb!I_ncx_j! to the ECC non-spatial model
+  and probably the spatial model
+\begin{verbatim}
+## in each CRU
+I_ncx_j  = I_ncx_bar_j*(na_i^3*ca_o*EXP(0.35*V/RT_F)-na_o^3*ca_ds*EXP((0.35-1)*V/RT_F))./
+         ((87500^3+na_o^3)*(1380+ca_o)*(1+0.1*EXP((0.35-1)*V/RT_F)))
+J_ncx_j = -2*I_ncx_j*Am_2FVmyo
+# which contribute to [Ca]_ds
+\end{verbatim}
+
+\item Remove in spatial model
+
+\begin{verbatim}
+J_efflux_total
+J_refill_total
+I_dhpr_total
+\end{verbatim}
+
+
+\item instead of using \verb!sum_reduce_double_2host()!, define a
+  kernel that can be called from Fortran so that 2 kernels can run at
+  the same time using 2 different stream IDs.
+
+
+\item add to the spatial code
+\begin{verbatim}
+ts_Na_lin
+ts_K_lin
+\end{verbatim}
+to functions
+\begin{verbatim}
+tscell_initialize_linear
+...
+\end{verbatim}
+
+
+\item Consider spatial heterogeneous distribution of NCX where NCX is
+  present more in junctional SR, or along the T-tubules. 
+
+
+\item Implement \verb!makeKs_nj()! that work with any number of states
+  for  RyR and DHPR
+
+
+\item \sout{Remove 2 output set of columns RyRGate() and
+  DHPRgate() from HDF files (and rerun all restart files with
+  control, HF, and HForphan...)}
+
+
+\item Consider moving caffeine setting to the \verb!testdata_file.txt!
+
+\item \sout{Add the param file name in the summary\_data.txt so that we
+don't have to search for correc tconfiguration file name. (add to the first
+line)}
+
+\item Implement print out to restart file \verb!datamode6_init!,
+\verb!datamode6_print!, \verb!datamode6_print_last!.
+
+\item Change in spatial code to reflect better name (flux from SR to MYO should
+be flux from internal source (either NSR or subspace) to MYO)
+\begin{verbatim}
+J_sr2myo ---> J_int2myo
+\end{verbatim}
+
+
+\end{enumerate}
+

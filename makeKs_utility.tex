@@ -1,0 +1,171 @@
+\chapter{makeKs\_utility.f95}
+\label{chap:makeKs_util}
+
+\section{getcompK\_\ldots}
+\label{sec:getcompK}
+
+\begin{enumerate}
+  \item \verb!getcompK! : premature version, work with 2-state RyR
+  \begin{lstlisting}
+  getcompK(ak,compK, indexK,m,irows,maxnkl,iUi)
+     ak: transition matrix of single channel (size: m x m)
+     compK, indexK : compact form (size: compK(irows, 0:maxnkl), 
+                                         indexK(irows, maxnkl)
+     m = number of state of a single channel
+     maxnkl : columns of compK, indexK
+     iUi  : vector tells the number of RyRs in each state (size: irows x m)
+  \end{lstlisting}
+  The number of columns: maxnkl = m * (m-1). The zero-th column has not been
+  used.
+  
+  \item \verb!getcompK2!: a better version of \verb!getcompK! with better
+  constrain for maxnkl = number of rows with non-zero elements
+  \begin{lstlisting}
+  compK(irows, 0:maxnkl)
+  indexK(irows, maxnkl)
+  \end{lstlisting}
+  The negative value is at last column
+  \begin{verbatim}
+         if (asum .gt. EPS) then
+          compK(ii, maxnkl) = -asum
+          indexK(ii, maxnkl) = ii
+       endif
+  \end{verbatim}
+  
+  The transpose version \verb!getcompK2_T! has
+  \begin{lstlisting}
+  compK(0:maxnkl, irows)
+  indexK(maxnkl, irows)
+  \end{lstlisting}
+  with negative value is at first row
+  \begin{verbatim}
+         if (asum .gt. EPS) then
+          compK(1, ii) = -asum
+          indexK(1, ii) = ii
+       endif
+  \end{verbatim}  
+  The zero-th column/row is still dummy. 
+  
+  \begin{framed}
+  If we use the transpose form, with columns represent the current states
+  \begin{verbatim}
+  jj = 1...TOTAL_COLUMN
+      compK(jj, ct)
+  \end{verbatim}
+  with ct can be different for each CRU, compared to
+  \begin{verbatim}
+  jj = 1...TOTAL_COLUMN
+      compK(ct,jj)
+  \end{verbatim}
+  As Fortran use column-based indexing, the regular form is better, i.e.
+  compK(irow, maxnkp)
+  \end{framed}
+  
+  \item \verb!getcompK_3! : a better version that works with full EC-coupling
+  model. From now on, the negative value is kept at the first row/column,
+  depending whether transpose version is used or not, i.e.
+  \begin{verbatim}
+          compK(ii, 1) = -asum
+          idxK(ii, 1) = ii
+ or
+           compK(1, ii) = -asum
+          idxK(1, ii) = ii 
+  \end{verbatim} 
+	Also, the constraint for the columns (i.e. maximum number of non-zero state
+	transition) is the number of non-zero non-diagonal elements. 
+Now, the index matrix has the zero-th column/row.
+\begin{verbatim}
+    ALLOCATE(idxK(irows, 0:maxnkl))
+\end{verbatim}
+which is set to the true number of neighbors at the corresponding state index
+\begin{verbatim}
+       IF (icount > 1) THEN
+          idxK(ii, 0) = icount
+       ELSE
+          idxK(ii, 0) = +0
+       ENDIF
+\end{verbatim}
+
+\item \verb!getcompK_4! : a similar version of \verb!getcompK_3!, yet give
+better column constraint when the number of channel is less than the number of
+state for a single channel. 
+\end{enumerate}
+
+
+\section{makeKs}
+\label{sec:makeKs}
+
+\begin{enumerate}
+  \item \verb!makeKs()! : create the transition matrices, in full format, for
+  the regular release site unit (CRU)
+  \begin{lstlisting}
+    SUBROUTINE makeKs(aKv1,aKv2,aKm1,aKp1,aKm2,aKp2,U_Lo,U_Ro,N_L,N_R,irow_L,irow_R)
+  \end{lstlisting}
+	It uses \verb!getbigK()! subroutine. 
+  
+  \item \verb!makecompKs()!: the first version of compact form matrices. This
+  work with Leak study as it generates the compact form for RyR cluster only.
+\begin{lstlisting}
+  SUBROUTINE makecompKs(compKm, compKp, indexKm, indexKp, U_Ro, N_R &
+       ,irow_R,maxnklm, maxnklp)
+\end{lstlisting}
+which call \verb!setupRyR_2state!
+\begin{verbatim}
+    CALL setupRyR_2state(N_R, &
+         compKm, compKp, &
+         indexKm, indexKp, &
+         U_Ro, irow_R, maxnklm, maxnklp, "leak")
+\end{verbatim}
+Correspondingly, we also have the transpose version \verb!makecompKs_T!.
+
+\item \verb!makecompKs_2()! : the first version of compact form matrices that is
+designed for a heterogeneous cluster (LCC + RyR). 
+\begin{lstlisting}
+  SUBROUTINE makecompKs_2(compKv1, compKv2, compKm1, compKm2, compKp1, &
+       compKp2, idxKv1, idxKv2, idxKm1, idxKm2, idxKp1, &
+       idxKp2, U_Lo, U_Ro, N_L, N_R, irow_L, irow_R, maxnkv1, maxnkv2, maxnkm1, &
+       maxnkm2, maxnkp1, maxnkp2)
+\end{lstlisting}
+The transition matrix for the heterogeneous clusters is formed by using either
+\begin{verbatim}
+    CALL getclustercompKleft_T(compK_Lv1, idxK_Lv1, &
+         irow_L, irow_R, maxnkLv1, compKv1, idxKv1, maxnkv1)
+\end{verbatim}
+or
+\begin{verbatim}
+    CALL getclustercompKright_T(compK_Rp, idxK_Rp, &
+         irow_L, irow_R, maxnkRp, compKp2, idxKp2, maxnkp2)
+\end{verbatim}
+LIMITATION: This function is designed to work with 6-state LCC + 2-state RyR. 
+
+\item \verb!makecompKs_3()!: This function is designed to work with any model of
+LCC + RyR.
+\begin{lstlisting}
+  SUBROUTINE makecompKs_3(compKv1, compKv2, compKm1, compKm2, compKp1, &
+       compKp2, idxKv1, idxKv2, idxKm1, idxKm2, idxKp1, &
+       idxKp2, U_Lo, U_Ro, N_L, N_R, irow_L, irow_R, maxnkv1, maxnkv2, maxnkm1, &
+       maxnkm2, maxnkp1, maxnkp2, setupLCC, setupRyR)
+\end{lstlisting}
+
+\item \verb!makeKs_nj_6_2!: full matrices for single channel(6-state LCC +
+2-state RyR), as non-junctional channels are modeled deterministic.
+\begin{lstlisting}
+  SUBROUTINE makeKs_nj_6_2(aKv1, aKv2, aKm1, aKp1, aKm2, aKp2, U_Lo, &
+       U_Ro, pL_nj, pR_nj, irow_L, irow_R) 
+\end{lstlisting}
+
+\verb!makeKs_nj_7_2!: work with 7-state LCC + 2-state RyR
+
+\item \verb!makeKs_orphan_2! = \verb!makeKs_RyRsmall_2! : generate transition
+matrices in full form of a cluster of RyR per se. This is used to model
+orphaning RyR or a small size RyR. 
+
+
+\item \verb!makecompKs_RyRsmall_2!: 
+\begin{verbatim}
+CALL makecompKs_RyRsmall(N_R_small, compK_Rm_small, compK_Rp_small, &
+           idx_Rm_small, idx_Rp_small, &
+           U_Ro_small, irow_R_small, maxnkRm_small, maxnkRp_small, setupRyR_2state)
+\end{verbatim}
+The transpose form is \verb!makecompKs_RyRsmall_2_T!.
+\end{enumerate}

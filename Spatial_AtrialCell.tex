@@ -1,0 +1,127 @@
+\chapter{Spatial Model Atrial Cell}
+\label{chap:spatial_atrial_cell}
+
+
+There are major change in coding the model for atrial cells. This is mainly
+caused by the fact that in atrial cell, the microdomain of subspace is very
+rarely (10-20\%). So most of the time, the ryanodine receptor (RyR2) see the calcium in the myoplasm. 
+To study the dynamics of calcium sparks, in the model, we removed this effect by
+making some changes in the temporalspatial code.
+
+\begin{enumerate}
+  \item  \verb!Ca_ds_dev! is removed from the code, instead we replace it with
+  \verb!Ca_myo_in(offset)! with \verb!offset=SFU_in_lingrid_dev(ii)! with $ii$
+  is the index of the 'pseudo'-SFU in which we still use to detect the jSR location. 
+ 
+ \item As a matter of fact, the calcium from $I_\dhpr$ and $J_\ryr$ flow directly into
+the grid point containing myoplasm. So, we don't need to have
+\verb!J_efflux! nor \verb!J_efflux_part! in the code.
+
+\begin{verbatim}
+J_efflux_dev(ii) = J_dhpr + J_ryr_dev(ii)
+J_efflux_part_dev(offset) = J_efflux_dev(ii)
+\end{verbatim}
+
+ \item Using of \verb!_CRU_LAYOUT_STRATEGY_! macro is removed. Also, the flux
+ rate need to be adjusted
+\begin{verbatim}
+v_ryrT = ???
+P_dhprT = ???
+\end{verbatim}
+NOTE: This is permeabilized cell, so we run \verb!_MODE_CLOSED_CELL! simulation,
+and we don't use \verb!P_dhprT! value.
+
+  \item The detection of the peak of the spark is now using
+  \verb!Ca_peak_prev_dev! rather than \verb!Ca_ds_prev_dev!. 
+  
+  \item Some functions has been modified to adapt to atrial cell
+  \begin{verbatim}
+  analyze_Sparks_2(... , Ca_myo_in)
+  analyze_Sparks_3(... , Ca_myo_in)
+  \end{verbatim}
+  
+  \item New macro to determine blocking SERCA or not
+  \begin{verbatim}
+  #define _USE_SERCA_ _YES
+  \end{verbatim}
+  
+  \item New macro to incorporate the effect of EGTA buffer
+  \begin{verbatim}
+    #define _USE_EGTA_ _YES
+  \end{verbatim}
+\end{enumerate}
+
+The code works with grid-point of size 100nm and 50nm. 
+\begin{enumerate}
+  \item 49RYR: it senses calcium from 300x200x100 (which uses macro
+  \verb!_3x2x1! or \verb!_6x4x2!, depending on the grid-size being used)
+  \item 25RYR: it senses calcium from 200x200x100 (which uses macro
+  \verb!_2x2x1! or \verb!_4x4x2!)
+\end{enumerate}
+
+\textcolor{red}{All simulations were done under the condition of permeabilized
+cells}, i.e. no change in cytoplasmic calcium. The exogenous buffer EGTA was
+incorporated to avoid calcium waves.
+
+The major change in AF compared to Ctrl is the buffer changes, and an increase
+in the number of sattelite clusters. In Ctrl, it has about 2 satellite clusters,
+at a distance within 150nm that form the super-cluster or a functioning group
+with the center cluster. In AF, it has about 4 satellite clusters. Also,
+macrosparks are observed more frequently in AF (from very rarely in Ctrl to
+about 10\% in AF), a simulation using 50nm grid-size was done. 
+
+
+\section{Macro-sparks}
+
+We do two things to test macro-sparks
+
+\begin{enumerate}
+  \item One big cluster (384RyRs), the activation is 
+\begin{verbatim}
+//macro.h
+#define _ARRANGE_CRU_ _CRU_UNIFORM_WITH_ROGUE_RYR
+#define _CRU_LAYOUT_STRATEGY_ _9x9x1
+#define _EMULATE_CONDITION_ _CUSTOMIZED_CRUS
+\end{verbatim}  
+and no rogue RyR setting.
+
+  \item Use a customize CRU arrangement setting  
+\begin{verbatim}
+//macro.h
+#define _ARRANGE_CRU_ _CRU_MACROSPARK_WITH_ROGUE_RYR
+
+//tscell_gpu_utility.f95
+  #elif _ARRANGE_CRU_ == _CRU_MACROSPARK_WITH_ROGUE_RYR
+    ierr = tscell_layout_CaRUs2grid_linear(NSFU, SFU_in_lingrid, lingrid_with_SFU, &
+         put_SFU2grid3D_macrospark_rogue_RYR)
+
+\end{verbatim}
+\end{enumerate}
+
+
+Also, the activation of the cluster is depending on the calcium highest among
+the grid-points covered by the RyR cluster, rather than the averaged calcium
+level at these grid-points.
+\begin{enumerate}
+  \item 9x9x1
+\begin{verbatim}
+!!9x9x1
+       s_Ca_myo(tx) = 0.0d0
+       do mi = -4, 4
+             dtemp = maxval(Ca_myo(offset+mi*int_ca(17)-4 : offset+mi*int_ca(17)+4))
+             s_Ca_myo(tx) = max(s_Ca_myo(tx), dtemp)
+       end do
+\end{verbatim}
+
+  \item 3x3x1
+\begin{verbatim}
+!!3x3x1
+       s_Ca_myo(tx) = 0.0d0
+       do mi = -1, 1
+             dtemp = maxval(Ca_myo(offset+mi*int_ca(17)-1 : offset+mi*int_ca(17)+1))
+             s_Ca_myo(tx) = max(s_Ca_myo(tx), dtemp)
+       end do
+\end{verbatim}  
+\end{enumerate}
+
+

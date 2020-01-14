@@ -1,0 +1,764 @@
+\chapter{Spatial model with peripheral RyR clusters}
+\label{chap:small_RyR_cluster}
+% \section{Small RyR cluter}
+% \label{sec:small_RyR_cluster}
+
+In cardiac cells, it was observed a small population of ``rogue'' RyR cluster or
+non-junctional RyR cluster. The size of these clusters are smaller compared to
+those in the dyadic subspace. These rogue RyR clusters are believed to
+facilitate the propagation of spark-induced spark. So, it's important to
+investigate its role in a spatial-temporal model. This cluster has no apposed
+LCC cluter. Currently, the dynamics of these RyR2 channels are assumed the same
+as that in the dyadic subspace (\textcolor{red}{so we use the same
+rate-transition matrices}). However, some experimental data shown that the
+activities of these channels are more often. Thus, we may need to use a
+different kinetic scheme for channels in the non-junctional cluster (to be
+investigated later).
+% \begin{verbatim} !! transition matrices for small RyR clusters (no opposing
+% DHPR) REAL(KIND=dp), DIMENSION(:,:), ALLOCATABLE:: aKm2_small, aKp2_small
+% INTEGER, DIMENSION(:), ALLOCATABLE :: U_Ro_small INTEGER :: irow_R_small
+% \end{verbatim}
+\section{New data}
+
+OBSOLETE:
+\begin{verbatim}
+REAL(KIND=dp), DIMENSION(:,:), ALLOCATABLE:: compK_Rm_small, compK_Rp_small
+INTEGER, DIMENSION(:,:), ALLOCATABLE :: idx_Rm_small, idx_Rp_small
+INTEGER, DIMENSION(:), ALLOCATABLE :: U_Ro_small
+INTEGER :: irow_R_small
+INTEGER :: maxnkRm_small, maxnkRp_small  
+\end{verbatim}
+REPLACED BY
+\begin{verbatim}
+  !+rogue RyR
+  REAL(KIND=dp), DIMENSION(:,:), ALLOCATABLE :: ryr_compKfree_rogue, ryr_compKcal_act_rogue
+  INTEGER, DIMENSION(:,:), ALLOCATABLE :: ryr_indxKfree_rogue, ryr_indxKcal_act_rogue
+  INTEGER:: ryr_Ncol_Kfree_rogue, ryr_Ncol_Kcal_act_rogue
+
+  !+ vector tells number of open LCC/RyR in each homogeneous cluster space
+  REAL(KIND=dp), DIMENSION(:), ALLOCATABLE :: U_Ro_rogue
+  !+ number of rows in each vector above
+  INTEGER :: irow_R_rogue
+\end{verbatim}
+
+For GPU data, we declare
+
+OBSOLETE
+\begin{verbatim}
+!!for small cluster:
+REAL(KIND=dp), DIMENSION(:,:), ALLOCATABLE, device :: compK_Rm_small_dev, compK_Rp_small_dev
+INTEGER, DIMENSION(:, :), ALLOCATABLE, device :: idx_Rm_small_dev, idx_Rp_small_dev
+REAL(KIND=dp), DIMENSION(:), ALLOCATABLE, device :: U_Ro_small_dev
+
+ALLOCATE(compK_Rm_small_dev(0:maxnkRm_small, irow_R_small), &
+       compK_Rp_small_dev(0:maxnkRp_small, irow_R_small), STAT=iserror)
+ALLOCATE(idx_Rm_small_dev(0:maxnkRm_small, irow_R_small), &
+         idx_Rp_small_dev(0:maxnkRp_small, irow_R_small) )
+         
+ ALLOCATE(U_Ro_small_dev(irow_R_small), stat=iserror)         
+\end{verbatim}
+REPLACED BY
+\begin{verbatim}
+  !!for rogue cluster:
+  REAL(KIND=dp), DIMENSION(:,:), ALLOCATABLE, device :: ryr_compKfree_rogue_dev, ryr_compKcal_act_rogue_dev
+  INTEGER, DIMENSION(:, :), ALLOCATABLE, device :: ryr_indxKfree_rogue_dev, ryr_indxKcal_act_rogue_dev
+  REAL(KIND=dp), DIMENSION(:), ALLOCATABLE, device :: U_Ro_rogue_dev
+\end{verbatim}
+
+
+To generate these matrices, in the main.f95 file, we call
+% \begin{verbatim}
+%   !! generate transition matrices for small size RyR (no apposing DHPR)
+%   CALL makeKs_RyRsmall_2(N_R_small, aKm2_small, aKp2_small, U_Ro_small, irow_R_small)
+% \end{verbatim}
+\begin{verbatim}
+CALL makecompKs_RYRsmall_T(N_R_small, compK_Rm_small, compK_Rp_small,& 
+           idx_Rm_small, idx_Rp_small, &
+           U_Ro_small, irow_R_small, maxnkRm_small, maxnkRp_small, &
+           setupRyR_2state_T) !!! or
+CALL makecompKs_RYRsmall(N_R_small, compK_Rm_small, compK_Rp_small, &
+           idx_Rm_small, idx_Rp_small, &
+           U_Ro_small, irow_R_small, maxnkRm_small, maxnkRp_small, & 
+           setupRyR_2state)
+\end{verbatim}
+and then assign
+\begin{verbatim}
+    compK_Rm_small_dev = compK_Rm_small
+    compK_Rp_small_dev = compK_Rp_small
+    idx_Rm_small_dev = idx_Rm_small
+    idx_Rp_small_dev = idx_Rp_small
+    U_Ro_small_dev = U_Ro_small
+\end{verbatim}
+
+
+%NOTE: We don't need to use compact form as RyR we are using has only 2-state. 
+
+With small size RyR clusters, what need to be changed? 
+\section{Size of data array to be increased}
+\label{sec:size_data_change}
+
+NOTE: The zero-th entry is important in device kernel for efficient calculation.
+In host code, we don't need to use this.
+
+\subsection{Ver 1}
+\label{sev:ver_1}
+
+If we assume the peripheral RyR clusters also see a subspace volume, and a
+junctional SR, then we need
+\begin{enumerate}
+  \item number of release sites: though 1\ldots NSFU (regular),
+  NSFU+1\ldots (k+1)*NSFU (small size RyR cluster) with k =
+  \verb!num_smallRyRneighbors! (1, 3 or 6).
+\begin{verbatim}
+    ALLOCATE(Ca_ds((num_smallRyRneighbors+1)*NSFU), &
+         Ca_jsr((num_smallRyRneighbors+1)*NSFU), PINNED=plog)    
+
+ALLOCATE(Ca_ds_dev(0:(num_smallRyRneighbors+1)*NSFU), &
+         Ca_jsr_dev(0:(num_smallRyRneighbors+1)*NSFU), stat=iserror)
+\end{verbatim}
+With new ``small RyR clusters'', we need to have more fluxes.
+\begin{verbatim}
+    ALLOCATE(J_efflux_dev(0:(num_smallRyRneighbors+1)*NSFU), &
+         J_refill_dev(0:(num_smallRyRneighbors+1)*NSFU), &
+         J_ryr_dev(0:(num_smallRyRneighbors+1)*NSFU), stat=iserror)
+    
+    !!NOTE: I_dhpr_dev not occur in small size RyR cluster
+    ALLOCATE(I_dhpr_dev(0:NSFU), stat=iserror)
+\end{verbatim}
+
+  \item variable to keep the indices of current states of different CRU
+  and rogue RyR clusters is increased in size
+  \begin{verbatim}
+ALLOCATE(sfu_state((num_smallRyRneighbors+1)*NSFU))
+ALLOCATE(RYRgate((num_smallRyRneighbors+1)*NSFU),  DHPRgate(NSFU))
+
+ALLOCATE(RYRgate_dev(0:(num_smallRyRneighbors+1)*NSFU),  &
+        stat=iserror)
+    
+ALLOCATE(sfu_state_dev((num_smallRyRneighbors+1)*NSFU), STAT = iserror)
+  \end{verbatim}
+  
+As we need to manage the states of rogue RyR clusters as well, we need to
+modify the subroutine \verb!init_SFU_state!, i.e. replaced by
+\verb!init_SFU_state_2!. 
+
+\begin{framed}
+SFU is replaced by CRU, i.e. \verb!init_CRU_state_2!. 
+\end{framed}
+%\verb!init_SFU_state_with_smallRyR!. 
+
+%   \begin{verbatim}
+%   ! called from loaddata_from_config()
+% CALL init_SFU_state_with_smallRyR(N_L, mL, NUM_STATES_SFU, U_Ro, irow_R,  &
+%          irow_R_small, U_Ro_small, sfu_state)
+%   \end{verbatim}
+  \begin{verbatim}
+CALL init_SFU_state_2(N_L, mL, NUM_STATES_SFU, U_Ro, irow_R,  &
+         irow_R_small, U_Ro_small, NSFU, sfu_state)
+  \end{verbatim}
+
+and
+\begin{verbatim}
+RYRgate_dev(1:NSFU) = U_Ro(sfu_state(1:NSFU))
+RYRgate_dev(NSFU+1:) = U_Ro_small(sfu_state(NSFU+1:))
+\end{verbatim}
+\end{enumerate}
+
+\subsection{Ver 2}
+\label{sec:ver_2}
+
+If we assume the peripheral RyR clusters see the bulk myoplasm and network SR,
+then we need
+\begin{enumerate}
+  \item With new ``small RyR clusters'', we need to have more fluxes.
+\begin{verbatim}
+    ALLOCATE(J_ryr_dev(0:(num_smallRyRneighbors+1)*NSFU), stat=iserror)
+    
+    !!NOTE: I_dhpr_dev not occur in small size RyR cluster
+    ALLOCATE(I_dhpr_dev(0:NSFU), stat=iserror)
+\end{verbatim}
+
+  \item variable to keep the indices of current states of different CRU
+  and rogue RyR clusters is increased in size
+  \begin{verbatim}
+ALLOCATE(sfu_state((num_smallRyRneighbors+1)*NSFU))
+ALLOCATE(RYRgate((num_smallRyRneighbors+1)*NSFU),  DHPRgate(NSFU))
+
+ALLOCATE(RYRgate_dev(0:(num_smallRyRneighbors+1)*NSFU),  &
+        stat=iserror)
+    
+ALLOCATE(sfu_state_dev((num_smallRyRneighbors+1)*NSFU), STAT = iserror)
+  \end{verbatim}
+  
+As we need to manage the states of rogue RyR clusters as well, we need to
+modify the subroutine \verb!init_SFU_state!, i.e. replaced by
+\verb!init_SFU_state_with_smallRyR!. 
+
+  \begin{verbatim}
+  ! called from loaddata_from_config()
+CALL init_SFU_state_with_smallRyR(N_L, mL, NUM_STATES_SFU, U_Ro, irow_R,  &
+         irow_R_small, U_Ro_small, sfu_state)
+  \end{verbatim}
+and
+\begin{verbatim}
+RYRgate_dev(1:NSFU) = U_Ro(sfu_state(1:NSFU))
+RYRgate_dev(NSFU+1:) = U_Ro_small(sfu_state(NSFU+1:))
+\end{verbatim}
+\end{enumerate}
+
+\section{Data don't change}
+
+\begin{enumerate}
+  \item As we only use the normal release site to determine the time step, we
+  don't change \verb!compPdt_dev! size
+\begin{verbatim}
+	! new method is used by default
+    ALLOCATE(compPdt_dev(NSFU,1), stat=iserror)  
+\end{verbatim}  
+
+\item The vetor that tell how many DHPR channel opens at each CRU
+\begin{verbatim}
+ALLOCATE(DHPRgate(NSFU))
+
+DHPRgate_dev = U_Lo(sfu_state(1:NSFU))
+
+\end{verbatim}
+
+\end{enumerate}
+
+\section{Time step}
+
+The adaptive time step is chosen from the normal CRUs, not from the rogue RyR.
+So, we only need
+\begin{verbatim}
+ALLOCATE(compPdt_dev(NSFU,1), stat=iserror)  
+\end{verbatim}
+rather than
+\begin{verbatim}
+ALLOCATE(compPdt_dev((num_smallRyRneighbors+1)*NSFU,1), stat=iserror)  
+\end{verbatim}
+
+Also, as using the smaller grid point (0.1$\mum^3$,rather than 0.2$\mum^3$), we
+need to reduce the time step upper bound from 1d-6 to 2d-7. 
+
+\section{Random numbers}
+
+However, as we simualte stochastically both regular and small size RyR
+clusters, we need to change the amount of PRNs to be generated
+\begin{verbatim}    
+    !X_r_dev = keep pseudo-random numbers
+    ALLOCATE(X_r_dev((num_smallRyRneighbors+1)*NSFU*copy_interval)) 
+\end{verbatim}
+This requires us to use a different function: \verb!init_PRNG_2()!, rather than
+\verb!init_PRNG()!, with
+\begin{verbatim}
+    saruObj = init_saru(NSFU*(num_smallRyRneighbors+1), global_seed)
+!!and
+    ALLOCATE(X_r((num_smallRyRneighbors+1)*NSFU*copy_interval))
+\end{verbatim}
+
+\begin{framed}
+NOTE: New code from branch 2 version, use only one function \verb!init_PRNG()!
+that work for both regular w/wo rogue cluster of RyRs. 
+\end{framed}
+
+\section{Putting rogue RyRs}
+
+UPDATE:
+\begin{enumerate}
+  \item \verb!_ADD_SMALL_RYRS_! macro is obsolete
+  \item Rogue RyRs is replaced for small RyR cluster
+  \item Functions to put rougue cluster is explicitly defined in different
+  names, allowing us to implement a function to distribute rogue in any place
+  easily
+  \begin{verbatim}
+  put_extra_1_RYRs_cluster
+  put_extra_2_RYRs_cluster
+  put_extra_3_RYRs_cluster
+  put_extra_6_RYRs_cluster
+  \end{verbatim}
+\end{enumerate}
+
+With rogue RyR, how to know the location of them in the grid? There are
+two ways
+\begin{enumerate}
+  \item if the distance from each rogue RyR cluster to the master CRU is the
+  same, we can consider each rogue RyR cluster is a ``pseudo'' CRU, so we
+  increase the array to manage location of CRUs in the grid from 1..NSFU to 
+  1..(num\_neighborsRyR+1)*NSFU.
+  \begin{verbatim}
+  allocate(SFU_in_lingrid( (num_smallRyRneighbors+1)*NSFU))
+  \end{verbatim}
+  Then, we manage them using the information of the CRU and the
+  \verb!stride2smallRyR! plus the \verb!num_smallRyRneighbors! (initiated
+  inside \verb!init_Simulation()!). For example: the $i$-th CRU has its
+  upper neighbor at index (i+NSFU)-th index, left neighbor at (i+2*NSFU)-th
+  index\ldots
+\begin{verbatim}
+!!put_SFU2grid3D_homo_small_RYR()
+IF (dist2smallRyR .GT. 0.0d0) THEN 
+   !put extra CRU here
+            #if _ADD_SMALL_RYRS_ == _1_SMALL_RYRS
+   CALL put_extra_1_RYRs_cluster(idx, ii, jj, kk)
+            #elif _ADD_SMALL_RYRS_ == _3_SMALL_RYRS
+   CALL put_extra_3_RYRs_cluster(idx, ii, jj, kk)
+            #elif _ADD_SMALL_RYRS_ == _6_SMALL_RYRS
+   CALL put_extra_6_RYRs_cluster(idx, ii, jj, kk)
+            #endif
+
+\end{verbatim}  
+example:
+\begin{verbatim}
+!+ one on up
+SFU_in_grid3D(idx+NSFU, 1:3) = (/ ii-stride2smallRyR, jj, kk /)
+grid3D_with_SFU(ii-stride2smallRyR, jj, kk) = idx+NSFU
+
+lingrid_with_SFU = RESHAPE(grid3D_with_SFU, (/ SIZEWITHBOUNDARY /) )
+\end{verbatim}
+and modify
+\begin{verbatim}
+tscell_layout_CaRUs2grid_linear()
+\end{verbatim}
+to use \verb!put_SFU2grid3D_homo_small_RYR!.
+
+  \item if the distance can be different (using some radomly distribution), we
+  need to split the handling of rogue RyR in two separate vectors/matrices:
+  \verb!rogueRYR_in_lingrid! and \verb!lingrid_with_rogueRyR!. 
+\begin{verbatim}
+!data_tscell.f95
+INTEGER, DIMENSION(:), ALLOCATABLE :: rogueRyR_in_lingrid
+INTEGER, DIMENSION(:), ALLOCATABLE :: lingrid_with_rogueRyR
+  !or
+INTEGER, DIMENSION(:,:,:), ALLOCATABLE :: grid3D_with_rogueRyR  
+\end{verbatim}
+by modifying \verb!tscell_allocate_linear()! and
+\verb!tscell_allocate_gpu_linear! (to allocate). Here, the size of
+\verb!SFU_in_lingrid! doesn't change.
+
+To deal with these two new arrays, we use
+\begin{verbatim}
+tscell_layout_CaRUsRogueRyR2grid_linear(SFU_in_lingrid, lingrid_with_SFU,
+        rogueRyR_in_lingrid, lingrid_with_rogueRyR, put_SFUrogueRyR2grid3D_homo)
+\end{verbatim}
+
+\end{enumerate}
+
+\section{Modified kernels}
+\label{sec:kernel_change_peripheralRyR}
+
+To set-up kernel configuration, we use \verb!setup_KernelConfiguration_2()!,
+rather than \verb!setup_KernelConfiguration()!.
+\begin{verbatim}
+    CALL setup_KernelConfiguration_2()
+\end{verbatim}
+
+\begin{framed}
+From branch 2 version, the code use only one name
+\verb!setup_KernelConfiguration()! that works for all cases. 
+\end{framed}
+
+For kernel to update CRU state, we need to write a new kernel to update
+the rogue RyR clusters. There are two options: use the single kernel to update
+both CRU and rogue RyRs clusters. However, the code can be divergent. So, we can write two separate
+kernels, one to update CRU and one to update rogue RyRs both run in parallel. 
+\begin{itemize}
+  \item Option 1: Use a single kernel to update both. This kernel uses
+\begin{verbatim}
+gridSize_smallRyR = CEILING(REAL((num_smallRyRneighbors+1)*NSFU)/blocksize)  
+\end{verbatim}
+and the kernel to update CRU/rogue-RyR states is
+\verb!update_SFU_lin_with_smallRyR!.
+
+\item Option 2: Update CRU and rogue RyRs in two separate kernels. The first one
+to update CRUs use
+\begin{verbatim}
+gridSize = CEILING(REAL(NSFU)/blocksize)
+\end{verbatim}
+and the second one uses
+\begin{verbatim}
+gridSize_smallRyR = CEILING(REAL(num_smallRyRneighbors*NSFU)/blocksize)
+\end{verbatim}
+with the kernel to update CRU is \verb!update_SFU_lin!, and kernel to update
+rogue-RyR is \verb!update_rogueRyR!. 
+\end{itemize}
+
+To select which approach, they can be reconfigured using macro
+\begin{verbatim}
+#define _UPDATE_SEPARATE 0
+#define _UPDATE_BOTH     1
+#define _APPROACH_2_UPDATE_CRU_ROGUERYR _UPDATE_SEPARATE
+\end{verbatim}
+
+\subsection{Update states (CRUs + rogue RyRs)}
+
+\subsubsection{First approach}
+
+We use a single kernel to update states of CRUs + rogue RyR clusters
+\begin{verbatim}
+!! update CRU + rogue RyR clusters in the same kernel
+CALL update_SFU_lin_with_smallRyR <<< gridSize_smallRyR, blocksize>>> &
+     (X_r_dev((iinner-1)*(num_smallRyRneighbors+1)*NSFU+1:(iinner)*(num_smallRyRneighbors+1)*NSFU), &
+     dt, invdt, Vm, kva, kvi, dp_arg1, dp_arg2, &
+     Ca_myo_1_dev(PADDING_D+1:), Ca_nsr_1_dev(PADDING_D+1:), &
+     time, num_smallRyRneighbors, stride2smallRyR, &
+     maxnkRp_small, maxnkRm_small &
+     )
+\end{verbatim}
+
+\subsubsection{Second approach}
+
+We use two separate kernels: one to update states of CRUs, and one to update
+states of rogue RyR clusters.
+
+\begin{verbatim}
+CALL update_SFU_lin <<<gridSize, blocksize>>> &
+     (X_r_dev((iinner-1)*(num_smallRyRneighbors+1)*NSFU+1:(iinner-1)*(num_smallRyRneighbors+1)*NSFU+NSFU), &
+     dt, invdt, Vm, kva, kvi, dp_arg1, dp_arg2, &
+     Ca_myo_1_dev(PADDING_D+1:), Ca_nsr_1_dev(PADDING_D+1:), &
+     time &
+     )
+CALL update_rogueRyR <<< gridSize_smallRyR, blocksize>>> &
+     (X_r_dev((iinner-1)*(num_smallRyRneighbors+1)*NSFU+NSFU+1:(iinner)*(num_smallRyRneighbors+1)*NSFU), &
+     dt, invdt, Vm, kva, kvi, dp_arg1, dp_arg2, &
+     Ca_myo_1_dev(PADDING_D+1:), Ca_nsr_1_dev(PADDING_D+1:), &
+     time, num_smallRyRneighbors, stride2smallRyR, &
+     maxnkRp_small, maxnkRm_small &
+     )
+\end{verbatim}
+
+\subsection{update\_rogueRYR\_nochangestate}
+
+
+\verb!update_rogueRYR_nochangestate! accepts \verb!num_rogueRYRneighbors!. It
+assumes all CRUs have the same number of rogue-neighbors. 
+
+The assumption above is relaxed in \verb!update_rogueRYR_nochangestate_3!.
+
+\subsection{update\_rogueRYR\_nochangestate\_3}
+
+This version, \verb!update_rogueRYR_nochangestate_3!, accepts
+\verb!num_rogueRYRcluster! which is the number of total rogueRYRclusters.
+
+\verb!update_rogueRYR_nochangestate! is the special case of this version where
+\begin{verbatim}
+num_rogueRYRcluster = num_rogueRYRneighbors * NSFU
+\end{verbatim}
+
+\subsection{update\_rogueRYR\_nochangestate\_4}
+
+This version, \verb!update_rogueRYR_nochangestate_4! is an improvement to
+\verb!update_rogueRYR_nochangestate_3!, as it allows rogue-RYRcluster to spread
+more than one grid-point. User have to update the code and modify the macro
+\verb!_ROGUE_LAYOUT_STRATEGY_!.
+ 
+\begin{verbatim}
+   #if _ROGUE_LAYOUT_STRATEGY_ == _2x2x1
+       INCLUDE "2x2x1_Cansr.inc"
+       INCLUDE "2x2x1_Camyo.inc"
+   #else
+       s_Ca_myo(tx) = Ca_myo(offset)
+       s_Ca_nsr(tx) = Ca_nsr(offset)
+   #endif    
+\end{verbatim}
+
+
+\subsection{Update grid elements}
+
+We use \verb!update_GridElement_with_rogueRyR!. 
+
+
+\begin{framed}
+IDEA: \textcolor{red}{We may need to convert from using device array to
+registers for some variables to increase performance}, e.g. \verb!J_efflux_dev(:)! array
+to \verb!J_efflux! variable, \verb!J_refill_dev()!. CHALLENGE: We need to use
+them in \verb!ReactTerm_Cmyo! and \verb!ReactTerm_Cnsr!.
+\end{framed}
+
+For data in simulation with rogue RyRs, it's better to use the zero-th
+index. So, the new formula is
+
+Then, we need special settings
+%     Ca_ds_dev(1:NSFU) = Ca_ds(1:NSFU)
+%     Ca_jsr_dev(1:NSFU) = Ca_jsr(1:NSFU)
+%     Ca_ds_dev(NSFU+1:) = Ca_myo
+%     Ca_jsr_dev(NSFU+1:) = Ca_nsr
+% 
+\begin{verbatim}
+    Ca_ds_dev(1:) = Ca_ds
+    Ca_jsr_dev(1:) = Ca_jsr
+
+    Ca_ds_dev(0) = 0.0d0
+    Ca_jsr_dev(0) = 0.0d0
+    J_efflux_dev(0) = 0.0d0
+    J_refill_dev(0) = 0.0d0
+    J_ryr_dev(0) = 0.0d0
+    I_dhpr_dev(0) = 0.0d0
+    RYRgate_dev(0) = 0.0d0
+    DHPRgate_dev(0) = 0.0d0
+
+    sfu_state_dev = sfu_state
+    RYRgate_dev(1:NSFU) = U_Ro(sfu_state(1:NSFU))
+    RYRgate_dev(NSFU+1:) = U_Ro_small(sfu_state(NSFU+1:))
+    DHPRgate_dev = U_Lo(sfu_state(1:NSFU))
+    U_Ro_dev = U_Ro
+    U_Lo_dev = U_Lo
+    U_Ro_small_dev = U_Ro_small
+
+\end{verbatim}
+
+
+% The compact-form rate-transition matrices for the small cluster is created by
+% this code
+% \begin{verbatim}
+%     IF (has_smallRyR .EQ. 1) THEN
+% #if _USE_TRANSPOSE_FORM_ == _YES
+%        CALL makecompKs_RYRsmall_T(N_R_small, compK_Rm_small, compK_Rp_small, &
+%             idx_Rm_small, idx_Rp_small, &
+%             U_Ro_small, irow_R_small, maxnkRm_small, maxnkRp_small, setupRyR_2state_T)
+%        
+% #else
+%        CALL makecompKs_RYRsmall(N_R_small, compK_Rm_small, compK_Rp_small, &
+%             idx_Rm_small, idx_Rp_small, &
+%             U_Ro_small, irow_R_small, maxnkRm_small, maxnkRp_small, setupRyR_2state)
+%        
+% #endif
+%     ENDIF
+% \end{verbatim}
+
+\section{Code to analyze result}
+
+\subsection{write\_peripheralRyR2file}
+
+The function \verb!write_peripheralRyR2file! prints out data related to trigger
+of rogue RyR. It uses
+\begin{verbatim}
+LOGICAL : is_written2peripheralRyR = .FALSE.
+\end{verbatim}
+A new variable is needed: \verb!flag5!
+\begin{verbatim}
+   ! flag5 (tell if CRU/rogueRyR is triggered)  
+    ALLOCATE(flag1((num_smallRyRneighbors+1)*NSFU), flag2((num_smallRyRneighbors+1)*NSFU), &
+         flag3((num_smallRyRneighbors+1)*NSFU), flag4((num_smallRyRneighbors+1)*NSFU), stat=iserror)
+    IF (iserror) PRINT *, "MEM ERROR: flag1, flag2, flag3, flag4"
+    ALLOCATE(flag5((num_smallRyRneighbors+1)*NSFU), stat=iserror)
+    IF (iserror) PRINT *, "MEM ERROR: flag5"    
+    flag1 = .FALSE.
+    flag2 = .FALSE.
+    flag3 = .FALSE.
+    flag4 = .FALSE.
+    flag5 = .FALSE.
+    ALLOCATE(ts_spark((num_smallRyRneighbors+1)*NSFU), &
+         ts_blink((num_smallRyRneighbors+1)*NSFU), stat=iserror)
+    IF (iserror) PRINT *, "MEM ERROR: ts_spark, ts_blink"
+    ts_spark = +0d0
+    ts_blink = +0d0   
+\end{verbatim}
+
+The 5 new files are created. Each file print out the corresponding data at the
+time all RYRs are opened at normal CRU (first), and then rogue RYRs
+\begin{verbatim}
+open_time.txt  //time 
+open_cmyo.txt  //[Ca2+] at that location
+open_CaF.txt   //[CaF] at that location
+open_NoRYR.txt // #openRYR at that location
+open_Cads.txt  // [Ca]ds at that location 
+              // (in the case of atrial cell, it would be the same as
+              // open_cmyo.txt)
+\end{verbatim}  
+
+
+
+\subsection{trigger\_rogue\_RYR}
+
+\verb!trigger_rogue_RYR!, this version does some analysis by triggering the
+rogue RyR clusters, not the main CRU.
+\begin{verbatim}
+  SUBROUTINE trigger_rogue_RYR(U_Ro_small, sfu_state, NSFU, num_smallRyRneighbors, is_all_rogueRyR_open)
+\end{verbatim}
+This need to uses some variables
+\begin{verbatim}
+INTEGER, DIMENSION(:), ALLOCATABLE ::  index_rogueRyR_numRyRopen  ! index where #openRyR is 1, 2, ... N_R_small
+\end{verbatim}
+
+NOTE: \verb!num_smallRyRneighbor! is replaced by \verb!num_rogueRYRcluster!.
+
+
+\subsection{trigger\_rogue\_RYR\_3}
+
+\verb!trigger_rogue_RYR_3!, this version relaxes the assumption that all CRUs
+have the same number of rogue-RyR cluster. It accepts the total number of
+rogue-RYR cluster \verb!num_rogueRYRcluster!.
+
+In this version, all rogueRYRclusters are triggered.
+
+\subsection{trigger\_rogue\_RYR\_4}
+
+\verb!trigger_rogue_RYR_4! is the variant of \verb!trigger_rogue_RYR_3!, as it
+allows user to trigger one particular cluster of rogueRYRclusters only. Here, it
+assumes there are 3 rogueRYRclusters, and it triggers the second one. 
+
+\section{File changes}
+\label{sec:rogueRyR_filechanges}
+
+\subsection{data\_tscell.f95}
+\label{sec:data_tscell}
+
+OBSOLETE: \verb!..._small...! becomes \verb!\..._rogue...!
+
+\begin{verbatim}
+  INTEGER :: stride2rogueRyR
+  REAL(KIND=dp) :: dist2smallRyR
+  INTEGER :: num_rogueRyRneighbors = 0, N_R_rogue
+  REAL(KIND=dp) :: V_ds_rogue, lambda_ds_rogue, inv_lambda_ds_rogue
+  REAL(KIND=dp) :: Ej_rogue
+  !REAL(KIND=dp), DIMENSION(:,:), ALLOCATABLE :: ryr_KCal_act_rogue, ryr_Kfree_rogue
+\end{verbatim}
+
+New variables:
+\begin{verbatim}
+  INTEGER :: stride2smallRyR
+  REAL(KIND=dp) :: dist2smallRyR
+  INTEGER :: num_smallRyRneighbors = 0
+  REAL(KIND=dp) :: V_ds_small, lambda_ds_small, inv_lambda_ds_small
+\end{verbatim}
+then
+\begin{verbatim}
+    !! prepare ...	
+    IF (dist2smallRyR .GT. 0.0d0) THEN 
+       !put extra CRU here
+#if _ADD_SMALL_RYRS_ == _1_SMALL_RYRS
+       ALLOCATE(SFU_in_grid3D(2*NSFU, 3))
+       num_smallRyRneighbors = 1
+#elif _ADD_SMALL_RYRS_ == _3_SMALL_RYRS
+       ALLOCATE(SFU_in_grid3D(4*NSFU, 3))
+       num_smallRyRneighbors = 3
+#elif _ADD_SMALL_RYRS_ == _6_SMALL_RYRS
+       ALLOCATE(SFU_in_grid3D(7*NSFU, 3))
+       num_smallRyRneighbors = 6
+#else
+       WRITE(log_string, *) "Unsupported num neighboring small RyR cluster"
+       call write2log(log_string)
+       WRITE(log_string, *) "...please, update _ADD_SMALL_RYRS_"
+       CALL write2log(log_string)
+       STOP       
+#endif
+       CALL(log_string, *) "num_smallRyRneighbors = ", num_smallRyRneighbors
+       CALL write2log(log_string)
+    ELSE
+#if _ADD_SMALL_RYRS_ != _0_SMALL_RYRS
+       WRITE(log_string, *) "Wrong setting with small RyRs"
+       CALL write2log(log_string)
+       STOP
+#endif
+       ALLOCATE(SFU_in_grid3D(NSFU, 3))
+    END IF
+\end{verbatim}
+then, a new subroutine is defined to put both normal CRU and rogure RyR clusters
+in the mesh grid.
+\begin{verbatim}
+FUNCTION
+  put_SFU2grid3D_homo_small_RYR (SFU_ingrid3D, grid3Dwith_SFU) RESULT (res)
+\end{verbatim}
+
+
+\subsection{tscell\_gpu\_utility.f95}
+\label{sec:tscell_gpu_utility}
+
+New variables: to keep track the rate transition of the small clusters of rogue
+RyRs
+\begin{verbatim}
+  REAL(KIND=dp), DIMENSION(:,:), ALLOCATABLE, device :: compK_Rm_small_dev, compK_Rp_small_dev
+  INTEGER, DIMENSION(:, :), ALLOCATABLE, device :: idx_Rm_small_dev, idx_Rp_small_dev
+  REAL(KIND=dp), DIMENSION(:), ALLOCATABLE, device :: U_Ro_small_dev
+\end{verbatim}
+with data allocation
+\begin{verbatim}
+    ALLOCATE(compK_Rm_small_dev(0:maxnkRm_small, irow_R_small), &
+         compK_Rp_small_dev(0:maxnkRp_small, irow_R_small), STAT=iserror)
+    IF (iserror .NE. 0) PRINT *, "MEM ERROR: compK_Rm_small_dev..."
+    ALLOCATE(idx_Rm_small_dev(0:maxnkRm_small, irow_R_small), &
+         idx_Rp_small_dev(0:maxnkRp_small, irow_R_small) )
+    IF (iserror .NE. 0) PRINT *, "MEM ERROR: index_Rm_small_dev, ..."
+    
+    ALLOCATE(U_Ro_small_dev(irow_R_small), stat=iserror)
+    IF (iserror) PRINT *, "MEM ERROR: U_Ro_small_dev" 
+\end{verbatim}
+The gating for these small clusters are contained in the extended vector of
+\verb!RYRgate_dev()! (NOTE: there is no change in \verb!DHPRgate_dev()!)
+\begin{verbatim}
+    ALLOCATE(RYRgate_dev(0:(num_smallRyRneighbors+1)*NSFU),  &
+         DHPRgate_dev(0:NSFU), stat=iserror)
+\end{verbatim}
+
+The vector \verb!sfu_state_dev()! that keeps the current state index is
+also extended. 
+\begin{verbatim}
+    ALLOCATE(sfu_state_dev((num_smallRyRneighbors+1)*NSFU), STAT = iserror)
+\end{verbatim}
+NOTE: from 1..NSFU, it keeps index for vector \verb!U_Ro!, while from
+NSFU+1\ldots to the end, it keeps the index for vector \verb!U_Ro_small!. 
+
+As the gating for channels in these small clusters are stochastic as well, we
+also extend the number of generated pseudo-random numbers
+\begin{verbatim}
+!X_r_dev = keep pseudo-random numbers
+    ALLOCATE(X_r_dev((num_smallRyRneighbors+1)*NSFU*copy_interval), stat=iserror) 
+    IF (iserror) PRINT *, "MEM ERROR: X_r_dev"
+\end{verbatim}
+NOTE: We need to modify \verb!init_PRNG()! to \verb!init_PRNG_2()!.
+
+% Also, we assume there is a small subspace area in these small cluster, so with
+% $N$ such small clusters, we need to have $N$ new calcium subspace. To make it
+% easier to handle, we extend the array \verb!Ca_ds_dev()! and \verb!Ca_jsr_dev()! to
+% \begin{verbatim}
+%     ALLOCATE(Ca_ds_dev(0:(num_smallRyRneighbors+1)*NSFU), &
+%          Ca_jsr_dev(0:(num_smallRyRneighbors+1)*NSFU), stat=iserror)
+%          
+%     ALLOCATE(Ca_ds_prev_dev(0:(num_smallRyRneighbors+1)*NSFU), stat=iserror) 
+% \end{verbatim}
+% along with these subspaces, we also need addition fluxes variables, so we also
+% extend the vectors of the fluxes
+% \begin{verbatim}
+%     ALLOCATE(J_efflux_dev(0:(num_smallRyRneighbors+1)*NSFU), &
+%          J_refill_dev(0:(num_smallRyRneighbors+1)*NSFU), &
+%          J_ryr_dev(0:(num_smallRyRneighbors+1)*NSFU), stat=iserror)
+%     J_efflux_dev = +0d0; J_refill_dev = +0d0; J_ryr_dev = +0d0
+% \end{verbatim}
+% NOTE: The zero-th entry is important in device kernel for efficient calculation.
+% In host code, we don't need to use this
+
+
+% In kernel, we have some changes: we have another grid size to work with both
+% normal and small clusters
+% \begin{verbatim}
+% blocksize = BLOCKSIZE_1D
+% gridSize = CEILING(REAL(NSFU)/blocksize)
+% gridSize_smallRyR = CEILING(REAL((num_smallRyRneighbors+1)*NSFU)/blocksize)  ! ceiling value
+% \end{verbatim}
+
+For other data changes, see Sect.\ref{sec:size_data_change}. For kernel changes,
+see Sect.\ref{sec:kernel_change_peripheralRyR}.
+ 
+\section{Name changes}
+
+\begin{enumerate}
+  \item We change \verb!_small! to \verb!_rogue!, e.g
+  \begin{verbatim}
+  INTEGER :: num_rogueRyRneighbors
+  \end{verbatim}
+  So, the new names are
+  \begin{verbatim}
+  lambda_ds_small     -->   lambda_ds_rogue
+  inv_lambda_ds_small -->   inv_lambda_ds_rogue
+  V_ds_small          -->   V_ds_rogue
+  N_R_small           -->   N_R_rogue
+  E_j_small           -->   E_j_rogue
+  \end{verbatim}
+  The transition matrices and indexing matrices as well
+  \begin{verbatim}
+  compK_Rm_small      -->   ryr_compKfree_rogue
+  compK_Rp_small      -->   ryr_compKcal_act_rogue3
+  \end{verbatim}
+  
+\end{enumerate}
+

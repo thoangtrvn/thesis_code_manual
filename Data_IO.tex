@@ -1,0 +1,372 @@
+\chapter{Data I/O}
+\label{chap:Data_IO}
+
+\begin{lstlisting}
+CALL data_io_init()
+
+CALL data_io_write()
+
+CALL data_io_finalize()
+\end{lstlisting}
+which will call appropriate I/O functions depending on the setting of
+macro values. 
+
+There are a number of modes
+\begin{verbatim}
+#define _IO_NONE  0  
+#define _IO_TEST  1
+#define _IO_2_HDF  2
+#define _IO_2_ASCII  3
+#define _IO_2_SILO_3D 4 
+#define _IO_2_SILO_SLICE 5
+#define _IO_RESTART_FILE 6 
+#define _IO_2_HDF2 7
+
+#define _DATAMODE_ _IO_RESTART_FILE
+\end{verbatim}
+The description for each mode is given as follows
+\begin{verbatim}
+  !   0 = no I/O (only summary file is written)
+  !   1 = testing purpose (we can freely modify to print out 
+  !        (what we want in ASCII format)
+  !   2 = (spatial or non-spatial) HDF files
+  !   3 = text files (all)
+  !   4,5 = spatial output
+  !   6 = write out restart file and the last second
+  !   7 = (non-spatial) multiple datasets/file (time-Vm, Cads, Cajsr...)
+  !   8 = (spatial) HDF whole-cell
+NOTE: restart file is written out in all cases, except _IO_NONE  
+\end{verbatim}
+All modes print out the restart files. In mode \verb!_IO_RESTART_FILES!, we also
+print out the last second.
+
+We have two time trackers:
+\begin{verbatim}
+time_prev1 = to keep track when to write data out
+time_prev2 = to keep track time for calculating integrate flux
+time_prev_fb = to keep track when to write data out in first-second
+\end{verbatim}
+
+
+\section{Leak code}
+\label{sec:IO_leak}
+
+It still uses 
+\begin{verbatim}
+#if _DATAMODE_ == 1
+    CALL datamode1_print()
+#elif _DATAMODE_ == 2
+    CALL datamode2_print()
+#elif _DATAMODE_ == 3
+    CALL datamode3_print()
+#endif
+\end{verbatim}
+
+\section{ECC code}
+\label{sec:IO_ecc}
+
+Even though there are many options to choose the output format (as
+described in the below subsections), there are another two options to choose how
+often you want to do I/O
+\begin{enumerate}
+  \item \verb!_METHOD1!: write every \verb!x! (sec) with \verb!x! read from
+  parameter file
+  \item \verb!_METHOD2!: write after a given number of iterations (default: 100)
+\end{enumerate}
+
+\subsection{\_IO\_2\_HDF}
+\label{sec:ECC_HDF}
+
+Old versions: data is organized in a single data set ``/LEAK'' with a large
+number of columns. The functions for \verb!_IO_2_HDF!, it uses
+\begin{verbatim}
+datamode2_init()
+datamode2_print()
+  CALL hdf_open_simple(file_out, NSFU, CHUNK_SIZE, CHUNKS_PER_FILE, 
+                   file_struct, FIELDS_PER_RECORD)
+  CALL hdf_write_simple(file_struct, data_buffer, CHUNK_SIZE, 
+                   FIELDS_PER_RECORD)
+  CALL hdf_spark_close(file_struct)
+
+datamode2_print_last()       
+datamode2_close()
+\end{verbatim}
+
+\subsection{\_IO\_2\_HDF2}
+\label{sec:ECC_HDF2}
+
+New version: data is organized into a number of datasets
+\begin{enumerate}
+  \item ``/general''
+  \item ``/sfu-state''
+  \item ``/cds''
+  \item ``/cjsr''
+  \item ``/cacm''
+\end{enumerate}
+The functions for \verb!_IO_2_HDF2!, it uses
+\begin{verbatim} 
+datamode7_init()
+datamode7_print()
+  CALL hdf_ecc_open(file_out, NSFU, CHUNK_SIZE, 
+                       CHUNKS_PER_FILE, file_struct, FIELDS_PER_RECORD)
+  CALL hdf_ecc_write(file_struct, data_buffer, CHUNK_SIZE, 
+                       FIELDS_PER_RECORD, NSFU)
+  CALL hdf_ecc_close(file_struct)
+
+datamode7_close()
+\end{verbatim}
+
+
+
+\section{Spatial code}
+\label{sec:IO_spatial}
+
+Here, we want to make sure all files have the same number of time points, so we
+decided to divide files into a number of categories:
+\begin{enumerate}
+  \item \verb!file_struct! (HDFFILE): non-spatial or regular data (Vm, Cads,
+  Cajsr, etc.)
+  \item \verb!file_struct_cmyo! (HDFFILE2, HDFFILE3)
+  \item \verb!file_struct_caf! (HDFFILE2, HDFFILE3)
+  \item \verb!file_struct_cnsr! (HDFFILE2, HDFFILE3)
+  \item \verb!file_struct_Incx! (HDFFILE2, HDFFILE3)
+  \item (future) \ldots 
+\end{enumerate}
+\begin{verbatim}
+  TYPE(HDFFILE) :: file_struct
+#if _DATAMODE_ == _IO_2_HDF  
+  TYPE(HDFFILE2) :: file_struct_cmyo, file_struct_CaF, file_struct_cnsr
+#elif _DATAMODE_ == _IO_2_HDF3D
+  TYPE(HDFFILE3) :: file_struct_cmyo, file_struct_CaF, file_struct_cnsr
+  TYPE(HDFFILE3) :: file_struct_Incx
+#endif
+\end{verbatim}
+with the description of each type as follows
+\begin{verbatim}
+  TYPE HDFFILE !regular data
+     INTEGER(HID_T) :: file_ID
+     INTEGER(HID_T), DIMENSION(MAX_NUM_HANDLE) :: arr_dspace ! (data) space
+     INTEGER ::  num_dspace
+     INTEGER(HID_T), DIMENSION(MAX_NUM_HANDLE) :: arr_dset ! dataset
+     INTEGER :: num_dset
+     INTEGER(HID_T), DIMENSION(MAX_NUM_HANDLE) :: arr_plist !property list
+     INTEGER :: num_plist
+  END TYPE HDFFILE
+\end{verbatim}
+
+Each file has one chunk (\verb!CHUNKS_PER_FILE=1!). Each chunk is a table of
+size \verb!CHUNK_SIZE! x \verb!FIELDS_PER_RECORD!, with
+\begin{verbatim}
+    CHUNK_SIZE = 20000
+    CHUNKS_PER_FILE = 1 ! set it to one for now
+    NUM_STATES_NJ = mR * mL
+    NUM_FIELDS4CURRENTS = 11
+    !2 columns = 1 for time + 1 for Vm
+    !first NSFU = sfu_state
+    !second NSFU = cds
+    !third NSFU = cjsr
+    FIELDS_PER_RECORD = 2 + NSFU + NUM_STATES_NJ + NUM_FIELDS4CURRENTS + 2*NSFU
+\end{verbatim}
+ 
+\begin{verbatim}
+  TYPE HDFFILE2 !to deal with spatial data
+     INTEGER(HID_T) :: file_ID
+     INTEGER(HID_T), DIMENSION(MAX_NUM_HANDLE) :: arr_dspace ! (data) space
+     INTEGER ::  num_dspace
+     !first = vlayer
+     !second= hlayer
+     INTEGER(HID_T), DIMENSION(2,MAX_NUM_HANDLE,MAX_NUM_GROUPS) :: arr_dset ! dataset (1:2,dataset_id, group_id)
+     INTEGER, DIMENSION(MAX_NUM_HANDLE) :: num_dset !number of dset in each group
+     INTEGER(HID_T), DIMENSION(MAX_NUM_HANDLE) :: arr_plist !property list
+     INTEGER :: num_plist
+     INTEGER(HID_T), DIMENSION(MAX_NUM_GROUPS) :: arr_group ! group
+     INTEGER :: num_group
+     !the zero-th element keep the number of elements in the array
+     REAL(KIND=dp), DIMENSION(MAX_NUM_HANDLE*MAX_NUM_GROUPS) :: time_data
+  END TYPE HDFFILE2
+\end{verbatim}
+
+\begin{verbatim}
+  TYPE HDFFILE3 !spatial whole-cell data
+     INTEGER(HID_T) :: file_ID
+     INTEGER(HID_T), DIMENSION(MAX_NUM_HANDLE) :: arr_dspace ! (data) space
+     INTEGER ::  num_dspace
+     INTEGER(HID_T), DIMENSION(MAX_NUM_HANDLE) :: arr_dset ! dataset
+     INTEGER :: num_dset
+     INTEGER(HID_T), DIMENSION(MAX_NUM_HANDLE) :: arr_plist !property list
+     INTEGER :: num_plist
+     REAL(KIND=dp), DIMENSION(MAX_NUM_HANDLE) :: time_data
+  END TYPE HDFFILE3
+\end{verbatim}
+
+\subsection{\_IO\_2\_HDF}
+
+We print out 2 layers (longitudinal and transversal direction) at each Z-lines.
+The mode is \verb!_IO_2_HDF2!, it uses
+\begin{verbatim}
+datamode2_init_2()
+datamode2_print_2()
+    CALL get_new_cmyo_filename(hdf_cmyo_filename, hdf_spatial_fileindex)
+    CALL hdf_spatial_open(file_struct_cmyo, hdf_cmyo_filename, num_vlayers, num_hlayers, &
+         outerDIMX, outerDIMY, outerDIMZ)
+    CALL get_cnsr_filename(hdf_cnsr_filename, hdf_spatial_fileindex)
+    CALL hdf_spatial_open(file_struct_cnsr, hdf_cnsr_filename, num_vlayers, num_hlayers, &
+         outerDIMX, outerDIMY, outerDIMZ)
+  #if _USE_FLUO_ != _NO
+    CALL get_CaF_filename(hdf_CaF_filename, hdf_spatial_fileindex)
+    CALL hdf_spatial_open(file_struct_CaF, hdf_CaF_filename, num_vlayers, num_hlayers, &
+         outerDIMX, outerDIMY, outerDIMZ)
+  #endif
+    CALL hdf_spatial_write(file_struct_cmyo, ts_Ca_myo, &
+         num_vlayers, idx_vlayers, num_hlayers, idx_hlayers, &
+         outerDIMX, outerDIMY, outerDIMZ, time, file_is_full)
+
+    CALL hdf_spatial_write(file_struct_cnsr, ts_Ca_nsr, &
+         num_vlayers, idx_vlayers, num_hlayers, idx_hlayers, &
+         outerDIMX, outerDIMY, outerDIMZ, time, file_is_full)
+
+    CALL hdf_open_simple(file_out, NSFU, CHUNK_SIZE, CHUNKS_PER_FILE, file_struct, FIELDS_PER_RECORD)
+    CALL hdf_write_simple(file_struct, data_buffer, CHUNK_SIZE, FIELDS_PER_RECORD)
+    CALL hdf_spark_close(file_struct)
+  
+datamode2_close_2()
+\end{verbatim}
+Given the number of time points is CHUNK\_SIZE=10,000; we divide the
+spatial data in HDF5 into 100 groups, each group has 2x100 datasets (first 100
+belongs to cmyo-vertical, second 100 belongs to cmyo-horizontal).
+
+\begin{framed}
+Using 10,000 dataset per file, it gives 15GB of data. So, we suggest using
+300 dataset per file, which gives 500MB per file.
+\end{framed}
+Here, we use two different file indices, one for HDF5 spatial data
+\verb!hdf_spatial_fileindex!, and one for HDF5 regular data \verb!file_index!. 
+
+The HDF4 spatial code is organized as follows:
+\begin{enumerate}
+  \item 4 groups. Name of groups /group-001, /group-002\ldots, each group has 2x100
+  datasets.
+  \item the first 100 dataset 
+\end{enumerate}
+
+For cmyo spatial data, we do
+\begin{verbatim}
+hdf_spatial_fileindex = 0 !deal with spatial data
+hdf_groupindex = 0  ! deal with group
+hdf_datasetindex_ingroup = 0 ! deal with dataset in the current group
+!automatically increase file index and return the file name
+CALL get_new_cmyo_filename(hdf_cmyo_filename, hdf_spatial_fileindex)
+CALL hdf_spatial_open(file_struct_cmyo, hdf_cmyo_filename, hdf_groupindex, num_vlayers, num_hlayers, &
+     outerDIMX, outerDIMY, outerDIMZ)
+\end{verbatim}
+
+In \verb!hdf_spatial_open!, it does
+\begin{enumerate}
+  \item We create the file
+\begin{verbatim}
+CALL h5fcreate_f(TRIM(filename), H5F_ACC_TRUNC_F, file_ID, hdf_error, &
+         H5P_DEFAULT_F, H5P_DEFAULT_F)
+file_struct%file_ID = file_ID
+\end{verbatim}
+
+%\item We create attribute for root group (/) to store some information
+
+\item We create the group
+\begin{verbatim}
+    !create the first group
+    WRITE(group_name, "('/group-', i3.3)") group_index
+    CALL h5gcreate_f(file_ID, TRIM(group_name), hdf_error, 0)
+    file_struct%num_group = file_struct%num_group + 1
+\end{verbatim}
+
+\end{enumerate}
+
+Initialy the variable \verb!file_is_full=FALSE!. Then, when we write the data 
+
+\begin{enumerate}
+  \item if file is full, then
+	\begin{enumerate}
+	  \item write time-data to dataset ``time'' belong to root group
+	  \item close everything
+	\end{enumerate}
+  \item if not
+  \begin{enumerate}
+    \item check if group is full, if yes, create new group
+    \item create new dataset: 2 for each group ``/hdataset-'', and ``/vdataset-''
+    \item check if file is full to update \verb!file_is_full!.
+   \end{enumerate}  
+\end{enumerate}
+
+
+\begin{verbatim}
+  !! keep the indices of which layers that have the CRUs
+  INTEGER :: num_vlayers, num_hlayers
+  INTEGER, DIMENSION(MAX_NUM_LAYERS) :: idx_vlayers, idx_hlayers
+\end{verbatim}
+
+\subsection{\_IO\_2\_HDF2}
+
+???
+
+\subsection{\_IO\_2\_HDF3D}
+
+We print out the whole cell, \verb!_IO_2_HDF3D!, calcium concentration in the
+myoplasm Camyo, network SR Cansr; and possibly calcium-bound fluorescence in the
+myoplasm CaF.
+\begin{verbatim}
+datamode8_init()
+datamode8_print()
+       CALL hdf_spatial_close_2(file_struct_cmyo)
+       CALL get_new_cmyo_filename(hdf_cmyo_filename, hdf_spatial_fileindex)
+       CALL hdf_spatial_open_2(file_struct_cmyo, hdf_cmyo_filename,  &
+            outerDIMX, outerDIMY, outerDIMZ)
+
+       CALL hdf_spatial_close_2(file_struct_cnsr)
+       CALL get_cnsr_filename(hdf_cnsr_filename, hdf_spatial_fileindex)
+       CALL hdf_spatial_open_2(file_struct_cnsr, hdf_cnsr_filename,  &
+            outerDIMX, outerDIMY, outerDIMZ)
+datamode8_close()
+\end{verbatim}
+
+In this mode, to determine what to write out, a few more macros have been added
+to macro.h
+\begin{verbatim}
+#define _WRITE_CMYO_ _YES
+#define _WRITE_CNSR_ _YES
+#define _WRITE_BOUND_FLUO_ _YES
+#define _WRITE_I_NCX_ _NO
+\end{verbatim}
+
+For code before Oct 31, 2012, non-spatial data are written out using old format
+like \verb!_IO_2_HDF! in ECC code (Sect.\ref{sec:ECC_HDF}).
+
+For code since Nov, 1st, 2012, non-spatial data are written out using new format
+like \verb!_IO_2_HDF2! in ECC code (Sect.\ref{sec:ECC_HDF2}) with some changes
+\begin{enumerate}
+  \item column 1 = time
+  \item column 2 = Vm
+  \item next \verb!NUM_FIELDS4CURRENTS! columns = gating parameters
+  \item next NSFU columns = index of CRU states
+  \item next NSFU columns = Cads
+  \item next NSFU columns = Cajsr
+\end{enumerate}
+
+\subsection{\_IO\_2\_SILO\_3D}
+
+Print out the whole 3D data to SILO format
+\begin{verbatim}
+datamode4_init()
+datamode4_print()
+
+datamode4_close()
+\end{verbatim}
+
+\subsection{\_IO\_2\_SILO\_SLICE}
+
+Print out a single slice (indicated by \verb!slice_index=!) to SILO format
+\begin{verbatim}
+datamode5_init()
+datamode5_print()
+
+datamode5_close()
+\end{verbatim}

@@ -1,0 +1,595 @@
+\chapter{EC-coupling}
+\label{sec:ec-coupling}
+
+\begin{verbatim}
+irow_L      (number of LCC-cluster states)                 [unitless]
+
+NUM_STATES_SFU  (number of CRU states)                     [unitless]
+            (a heterogeneous cluster of LCC & RyR)
+            = irow_L * irow_R
+
+DHPRgate    (number of DHPRs open at each CRU)             [unitless]
+            array of size NSFU
+
+
+## gating variables  [fraction of channel in open or closed state]
+m_Na                                                       [unitless]
+           0.0015d0
+h_Na
+           0.9849d0
+j_Na 
+           0.9905d0
+a_Ktof
+           0.0021d0
+in_Ktof
+           1.0d0
+a_Ktos
+           2.9871d-4
+in_Ktos  
+           0.9994d0 
+a_Kss
+           0.002d0
+in_Kss  
+           1.0d0
+           
+## parameters for gating [transition rate from open to close and vice verse]
+a_h, a_j, b_h, b_j, a_m, b_m                                        [1/sec]
+#NOTE: Luo-Rudy use the unit of [1/ms], so here 
+#      all the gatings need to multiply with 1d3. 
+
+\end{verbatim}
+
+\begin{verbatim}
+sigma_v_dhpr  (activation parameter for DHPR Vm-dependent)          (mV)
+              = 6.24d0 mV
+Vtheta_dhpr   (activation threshold)                                (mV)
+              5d0
+# Vm-dependent transition rates on 2 different states
+# (mode normal, and mode calcium) of 6-state LCC 
+#  S1 -> S2 -> S3 (S3=open)
+#  |     |     |
+#  S4 -> S5 -> S6
+kva     (S1->S2)                                        [unitless]
+        = dexp((Vm - Vtheta_dhpr)/sigma_v_dhpr)/(1d0 + dexp((Vm - Vtheta_dhpr)/sigma_v_dhpr))
+kvi     (S4->S5)                                        [unitless]
+        = 1d0 - (1d0/(1d0+EXP((Vm+21.5d0)/4.5d0)) + 0.27d0/(1d0 + EXP((30d0-Vm)/8d0)))
+\end{verbatim}
+\begin{equation}
+  \label{eq:12}
+  \begin{split}
+  kva &=
+  \frac{\exp(\frac{Vm-V^\theta_\dhpr}{\sigma_{v,\dhpr}})}{1+\exp(\frac{Vm-V^\theta_\dhpr}{\sigma_{v,\dhpr}})} \\
+   kvi &= 1- \left( \frac{1}{1+\exp(\frac{Vm+21.5}{4.5})} + \frac{0.27}{1+\exp(\frac{30-Vm}{8})}\right)
+  \end{split}
+\end{equation}
+with $V^\theta_\dhpr=5.0$ mV, $\sigma_{v,\dhpr}=6.24$ mV.
+
+\begin{verbatim}
+## NOTE: 1 = RyR, 2 = LCC
+# Ca2+-dependent transition S2 -> S3 of LCC
+bigC1(ii) = Ca_ds(ii)**eta_LCC                              [uM^eta_LCC]
+
+# Ca2+-dependent transition C->O of RyR
+bigC2(ii) = Ca_ds(ii)**eta_RyR                              [uM^eta_RyR]
+# allosteric coupling transition O->C of RyR
+chiC(ii)                                                   [unitless]
+           = EXP(-Ej*0.5d0*((N_R-RYRgate(ii))*Ecc - (RYRgate(ii)-1d0)*Eoo))
+# allosteric coupling transition C->O of RyR
+chiO(ii)                                                   [unitless]
+           = EXP(-Ej*0.5d0*(RYRgate(ii)*Eoo - (N_R-RYRgate(ii)- 1d0)*Ecc))
+
+# luminal Ca2+-dependent gating C->O of RyR
+phi(ii)                                                    [????]
+           = k_jsr0*Ca_jsr(ii) + k_jsr1
+\end{verbatim}
+See eq.~\eqref{eq:24}.
+
+\section{Reversal potential}
+\label{sec:reversal-potential-1}
+
+\begin{verbatim}
+          E_Na = RT_F*LOG(Na_o/Na_i)
+          E_K = RT_F*LOG(K_o/K_i)
+          E_Ca = RT_FzCa*LOG(Ca_o/Ca_myo)  
+\end{verbatim}
+\begin{equation}
+  \label{eq:31}
+  \begin{split}
+      E_\na &=  \frac{RT}{z_\na F}\log\frac{[\Na]_o}{[\Na]_\myo} \\
+      E_\k &=  \frac{RT}{z_\k F}\log\frac{[\K]_o}{[\K]_\myo}\\
+      E_\ca &=  \frac{RT}{z_\ca F}\log\frac{[\Ca]_o}{[\Ca]_\myo}
+  \end{split}
+\end{equation}
+
+\section{Gating}
+\label{sec:gating}
+
+\textcolor{red}{The gatings units are [1/sec]}. 
+
+\begin{verbatim}
+# Using the heuristic formula of Luo-Rudy for Na current and K current
+!! Fast Na current (Luo-Rudy)
+IF (Vm .GE. -40.d0) THEN
+   a_h = 1d3*0
+   a_j = 1d3*0
+   b_h = 1d3*1d0/(0.13d0*(1d0+EXP((Vm+10.66d0)/-11.1d0)))
+   b_j = 1d3*0.3d0*(EXP(-2.535d-7*Vm)/(1+EXP(-0.1d0*(Vm+32d0))))
+ELSEIF (Vm .LT. -40.d0) THEN 
+   a_h = 1d3*(0.135d0*EXP((80d0+Vm)/-6.8d0))
+   a_j = 1d3*(-1.2714d5*EXP(0.2444d0*Vm)-3.474d-5*EXP(-0.04391d0*Vm))* &
+        ( (Vm+37.78d0)/(1+EXP(0.311d0*(Vm+79.23d0))))
+   b_h = 1d3*(3.56d0*EXP(0.079d0*Vm)+3.1d5*EXP(0.35d0*Vm))
+   b_j = 1d3*(0.1212d0*EXP(-0.01052d0*Vm)/(1+EXP(-0.1378d0*(Vm+40.14d0))))
+ELSE ! NaN blank
+   PRINT *, Vm
+   PRINT *, "Error: NaN value Vm"
+   RETURN
+END IF  
+
+a_m = 1d3*0.32d0*(Vm+47.13d0)/(1d0-EXP(-0.1d0*(Vm+47.13d0)))
+b_m = 1d3*0.08d0*EXP(-Vm/11d0)
+\end{verbatim}
+\begin{equation}
+  \label{eq:33}
+  \begin{split}
+      a_m &= 10^3\times 0.32 \times
+      \frac{V_m+47.13}{1-\exp(-0.1(V_m+47.13))}\\
+      b_m &= 10^3\times 0.08 \times \exp(-\frac{V_m}{11})
+  \end{split}
+\end{equation}
+
+\textcolor{red}{The time must be used in [sec], otherwise unexpected
+  results can occur}.
+The fraction of gating particles on one side of the membrane are given
+below
+\begin{verbatim}
+m_Na = m_Na + dt*(a_m*(1-m_na)-b_m*m_na)           [unitless]
+h_Na = h_Na + dt*(a_h*(1-h_na)-b_h*h_na)
+j_Na = j_Na + dt*(a_j*(1-j_na)-b_j*j_na)
+a_Ktof = a_Ktof +
+dt*(1d3*((0.18064d0*EXP(0.03577d0*(Vm+30d0)))*(1d0-a_Ktof) -
+            (0.3956d0*EXP(-0.06237d0*(Vm+30d0)))*a_Ktof)) 
+
+in_Ktof = in_Ktof + dt*(1d3*((((0.000152d0*EXP(-(Vm+13.5d0)/7d0))/
+           (0.067083d0*EXP(-(Vm+33.5d0)/7d0)+1d0)))*
+               (1-in_Ktof)-(((0.00095d0*EXP((Vm+33.5d0)/7d0))/
+                   (0.051335d0*EXP((Vm+33.5d0)/7d0)+1d0)))*in_Ktof))   
+
+a_Ktos = a_Ktos +
+            dt*(1d3*((1d0/(1d0+EXP(-(Vm+22.5d0)/7.7d0)))-a_Ktos)/
+                 (0.493d0*EXP(-0.0629d0*Vm)+2.058d0)) 
+in_Ktos = in_Ktos + dt*(1d3*((1d0/(1+EXP( (Vm+45.2d0)/5.7d0))) -
+                 in_Ktos) /((270.0d0+1050d0/(1+EXP( (Vm+45.2d0)/5.7d0 )))))
+a_Kss  = a_Kss  + dt*(1d3*((1d0/(1d0+EXP(-(Vm+22.5d0)/7.7d0)))-a_Kss)/
+                      (0.393d0*EXP(-0.0862d0*Vm)+0.13d0)) 
+in_Kss  = in_Kss  + dt*0  
+\end{verbatim}
+
+With the non-junctional DHPR and RyR, we use deterministic approach
+\begin{verbatim}
+tmp_pL_nj = pL_nj
+DO ii=1, irow_L_nj
+   pL_nj(ii) = tmp_pL_nj(ii) + dt*SUM(tmp_pL_nj(:)*(kva*aKv1_nj(:,ii)+ 
+               kvi*aKv2_nj(:,ii) + aKm1_nj(:,ii) + &
+               Ca_myo**eta_LCC * aKp1_nj(:,ii)))
+END DO
+tmp_pR_nj = pR_nj
+DO ii=1, irow_R_nj
+   pR_nj(ii) = tmp_pR_nj(ii) + dt*SUM(tmp_pR_nj(:)*(aKm2_nj(:,ii) +
+               (k_jsr0*Ca_nsr+k_jsr1)*Ca_myo**eta_RyR * aKp2_nj(:,ii))) 
+ENDDO
+\end{verbatim}
+
+\section{Membrane ionic currents}
+\label{sec:membr-ionic-curr-1}
+
+\begin{framed}
+  NOTE: as $\overline{g}_i$ is in mS/cm$^2$, and $V_m,E_i$ in mV, then
+  the resulting current is in $\mu$A/cm$^2$.
+\end{framed}
+\begin{verbatim}
+# Fast Na current [uA/cm^2]
+I_Na = g_na * m_na**3 * h_na * j_na * (Vm - E_Na)
+\end{verbatim}
+\begin{equation}
+  \label{eq:32}
+  I_\na = g_\na \times m_\na^3 \times h_\na \times j_\na (V_m-E_\na)
+\end{equation}
+
+\begin{verbatim}
+ ## K currents
+ I_Ktof = g_Ktof* a_Ktof**3 *in_Ktof*(Vm-E_K)
+ I_Ktos = g_Ktos* a_Ktos**3 *in_Ktos*(Vm-E_K)
+ I_K1   = g_k1*(K_o/(K_o+210.0d0))*((Vm-E_K-1.73d0)/
+                 (1+EXP(0.0596d0*(Vm-E_K-1.73d0)))) 
+ I_Kss  = g_Kss*a_Kss*in_Kss*(Vm-E_K) 
+\end{verbatim}
+
+\begin{verbatim}
+ ## Background currents
+ I_bNa = g_bNa*(Vm-E_Na)
+ I_bK  = g_bK*(Vm-E_K)
+ I_bCa = g_bCa*(Vm-E_Ca) 
+\end{verbatim}
+
+
+\begin{verbatim}
+## Sarcolemma pumps and Exchangers
+I_NaK  = I_NaK_bar*(1d0/(1d0+0.1245d0*EXP(-0.1d0*(Vm*F_RT))+
+             0.0365d0*(1/7d0*(EXP(Na_o/67300d0)-1d0))* & 
+             EXP(-(Vm*F_RT))))*(1d0/(1d0+(21000d0/Na_i)**1.5d0))*
+             (K_o/(K_o+1500d0))  
+
+I_pmca = I_pmca_bar*(Ca_myo**eta_pmca/(Km_pmca**eta_pmca+Ca_myo**eta_pmca))
+
+I_ncx  = I_ncx_bar*(Na_i**3 * Ca_o*EXP(eta_ncx*Vm*F_RT) - Na_o**3 *
+             Ca_myo*EXP((eta_ncx-1d0)*Vm*F_RT))/ & 
+               ((Km_ncxNa**3 + Na_o**3)*(Km_ncxCa+Ca_o)*
+                 (1d0+ksat_ncx*EXP((eta_ncx-1d0)*Vm*F_RT))) 
+\end{verbatim}
+\begin{equation}
+  \label{eq:39}
+  \begin{split}
+      I_\NaK = \overline{I}_\NaK \frac{1}{1+0.1245\exp(-0.1\frac{V_mF}{RT})) +
+    (\frac{0.0365}{7\exp(\frac{[\Na]_o}{67300})-1}) \times \exp(-\frac{V_mF}{RT}) }
+  \\
+  \frac{1}{1+\left( \frac{21000}{[\Na]_i}\right)^{1.5}}\frac{[\K]_o}{[\K]_o+1500}
+  \end{split}
+\end{equation}
+and eq.~\eqref{eq:10} ($I_\pmca$), eq.~\eqref{eq:11} ($I_\ncx$).
+
+\textcolor{red}{The $\Ca$ current via DHPR is measured at whole-cell
+  level, so the unit is $\mu$A}, rather than $\mu$A/cm$^2$. So, when we
+  combine with other ionic currents to calculate the membrane
+  potential, we need to divided it by the surface area of the membrane
+  $A_m$.
+
+\begin{verbatim}
+ I_dhpr_nj_T                                                   [uA]
+           = SUM(pL_nj, mask=U_Lo_nj .EQ. 1) * P_dhpr_nj*F2zCa2_RT*Vm * &
+          (Ca_myo * EXP(Vm*FzCa_RT) - 0.341d0 * Ca_o)/(EXP(Vm*FzCa_RT)-1d0)  
+
+## I_dhpr_nj_T is the current through all non-junctional DHPR (i.e. at
+#  whole-cell level), so the unit of I_dhpr_nj_T is [uA]
+#  Correspondingly, the unit of P_dhpr_nj is [L/sec]
+P_dhpr_nj = P_dhpr_T * prcent_dhpr_nj                          [L/sec]
+\end{verbatim}
+\begin{equation}
+  \label{eq:30}
+  I_{\dhpr,\nj}^T = \sum
+  \begin{array}{l}
+    \text{fraction of channels}\\
+    \text{ in open states}
+  \end{array}
+  P_{\dhpr,\nj}.\frac{z_\ca^2.F^2}{RT}.V_m.\frac{[\Ca]_\myo*\exp(\frac{z_\ca.V_m.F}{RT})
+    - 0.341[\Ca]_o}{\exp(\frac{z_\ca.V_m.F}{RT})-1}
+\end{equation}
+
+\textcolor{red}{NOTE: Currently, we don't have $I_{\ca(T)}$ T-type
+  current, non-specific $\Ca$ current $I_\nsCa$} in the model. T-type
+channel inactivates at very negative membrane potential $V_m<-50$mV.
+
+\subsection{Trans-membrane currents to each CRU}
+\label{sec:inside-each-cru}
+
+\begin{verbatim}
+## total current via DHPR at each CRU [uA]
+I_dhpr(ii)                                              [uA]
+            = DHPRgate(ii) * P_dhpr * (F2zCa2_RT*Vm) * &
+            (Ca_ds(ii) * EXP(Vm*FzCa_RT) - 0.341d0 * Ca_o) /(EXP(Vm*FzCa_RT) - 1)  
+
+P_dhpr      (permeability for single LCC channel)       [10^-6 L/sec]
+            = P_dhpr_T/(NSFU * N_L)
+# NOTE: If V_myo_T is reduced half, we also need to reduce CRUs half
+#       for these rates to be unchanged.
+# However, in non-spatial simulation, we often run with a smaller
+# amount of CRUs, while keeping the V_myo_T unchanged. That's why 
+# we need to increase the permeability
+# P_dhpr = P_dhpr_T / (NSFU * N_L)
+\end{verbatim}
+\begin{equation}
+  \label{eq:34}
+  I_\dhpr^\ii = N^\open_\dhpr .P_\dhpr.z_\ca^2.\frac{F^2 V_m}{RT}
+  \frac{0.341[\Ca]_o-[\Ca]_\ds\exp(\frac{z_\ca
+      V_mF}{RT})}{1-\exp(\frac{z_\ca V_mF}{RT})}
+\end{equation}
+
+\begin{framed}
+  \begin{verbatim}
+NOTE: zCa*Vm*F/RT is frequently used in many formula. We 
+can avoid recalculating by defining
+    zCaVmF_RT = zCa*Vm*F/RT
+ \end{verbatim}
+\end{framed}
+
+NOTE: We may need to add \verb!I_ncx_j! as well. 
+
+
+\section{Fluxes}
+\label{sec:fluxes-1}
+
+
+In transport phenomena (heat transfer, mass transfer), {\bf flux} is defined as
+the rate of flow of a property (e.g. heat, ions) per unit area, which has the
+dimension: [quantity].[time]$^{-1}$.[area]$^{-1}$. The flux is the 
+\begin{equation}
+j = \frac{dI}{dA}
+\end{equation}
+with $I$ is the current, and $A$ is the surface area. 
+
+In diffusion flux, based on Fickian diffusion, the dimension of flux is :
+(mol·m$^{-2}$·s$^{-1}$). With chemical diffusion, the [quantity] is in Molar,
+e.g. $\muM$ or mM. The flux of flow from component A to component B
+\begin{equation}
+j = -D_{AB} \Delta c_A
+\end{equation}
+with $D_{AB}$ is diffusion constant
+
+
+
+\textcolor{red}{All fluxes are defined over $V_\myo^T$}.
+
+\subsection{Trans-sarcolemmal fluxes go to bulk myoplasm}
+\label{sec:trans-sarc-flux-1}
+
+
+\begin{verbatim}
+# The current I_dhpr_nj_T is already measured at whole-cell level
+# So, the unit is [uA]
+# --> no need to multiply Am to find the flux J_dhpr_nj_T
+
+J_Ca_sarmem = (-I_bCa - I_pmca + zCa * I_ncx) * Am_2FVmyo  -
+                     I_dhpr_nj_T * inv_2FVmyo 
+\end{verbatim}
+\begin{equation}
+  \label{eq:37}
+  J_{\ca,sarmem} = (-I_\bCa - I_\pmca + z_\ca I_\ncx) \frac{A_m}{z_\ca
+    FV_\myo^T} - I_{\dhpr,\nj}^T\frac{1}{z_\ca FV_\myo^T}
+\end{equation}
+
+\subsection{Trans-sarcolemmal fluxes go to CRU}
+\label{sec:trans-sarc-flux-2}
+
+\begin{verbatim}
+# The current is already measured at whole-cell level
+# So, the unit is [uA]
+# --> no need to multiply surface area 
+J_dhpr(ii) = -I_dhpr(ii) * inv_2FVmyo
+\end{verbatim}
+
+NOTE: We need to add \verb!J_ncx_j! if we have \verb!I_ncx_j!.
+
+\subsection{Internal fluxes}
+\label{sec:internal-fluxes-1}
+
+Sect.~\ref{sec:internal-fluxes}.
+
+\section{$\Ca$, $\K$, $\Na$ dynamics}
+\label{sec:ca-k-na}
+
+\begin{verbatim}
+ Na_i = Na_i + dt*(-(I_Na + I_bNa + 3 *I_ncx + 3 *I_NaK)*Am_FVmyo)
+ K_i = K_i + dt*(-(I_K1 + I_Kss + I_Ktof + I_Ktos + I_bK - 2*I_NaK)*Am_FVmyo)  
+\end{verbatim}
+
+
+The change of calcium in each CRU
+\begin{verbatim}
+## Ca_ds (use either of the 2 formula, the exact form requires dt .LE. 1d-7
+# exact formula
+Ca_ds(ii) = Ca_ds(ii) + dt*beta_ds/lambda_ds * (J_ryr(ii) -
+                           J_efflux(ii) + J_dhpr(ii)) 
+# approximation
+dummy1 = DHPRgate(ii) * P_dhpr * F2zCa2_RT * Vm / (EXP(Vm*FzCa_RT)-1) * inv_2FVmyo
+dummy2 = RYRgate(ii) * v_ryr
+Ca_ds(ii) = (dummy2 * Ca_jsr(ii) + v_efflux * Ca_myo + dummy1 *
+                  0.341d0 * Ca_o) / (dummy2 + v_efflux +dummy1)  
+
+## Ca_jsr             
+Ca_jsr(ii) = Ca_jsr(ii) + dt*(beta_jsr/lambda_jsr) * (J_refill(ii) - J_ryr(ii))  
+\end{verbatim}
+\begin{equation}
+  \label{eq:28}
+  \left[ 
+    \begin{array}{l}
+      \frac{d[\Ca]_\ds^\ii}{dt} = \frac{\beta_\ds}{\lambda_\ds}(J_\ryr^\ii -
+      J_\ef^\ii + J_\dhpr^\ii)   \\
+      \text{[}\Ca]_\ds^\ii =  \frac{f_1 [\Ca]_\jsr^\ii + v_\ef
+        [\Ca]_\myo + 0.341 f_2 [\Ca]_o}{f_2 + v_\ef + f_1}
+    \end{array}
+\right.
+\end{equation}
+with 
+\begin{equation}
+  \label{eq:38}
+  \begin{split}
+    f_1 = N_\dhpr^{\open^\ii} P_\dhpr z_\ca^2F^2/(RT)\frac{V_m}{z_\ca
+      FV_\myo^T(\exp(z_\ca FV_m/(RT)))} \\
+    f_2 = N_\ryr^{\open^\ii} .v_\ryr
+  \end{split}
+\end{equation}
+and
+\begin{equation}
+  \label{eq:29}
+  \frac{d[\Ca]_\jsr^\ii}{dt} = \frac{\beta_\jsr}{\lambda_\jsr}(J_\rf^\ii-J_\ryr^\ii)
+\end{equation}
+
+The change of global calcium 
+\begin{Verbatim}
+Ca_nsr = Ca_nsr + dt*((beta_nsr/lambda_nsr)  * (J_serca - J_leak -
+                        SUM(J_refill) - J_ryr_nj_T)) 
+Ca_myo = Ca_myo + dt*(beta_myo * (SUM(J_efflux(:)) + J_leak +
+                      J_Ca_sarmem + J_ryr_nj_T - J_serca - J_trpn)) 
+CaB_htrpn = CaB_htrpn + dt*J_trpn
+\end{Verbatim}
+
+\section{$I_\stim$ clamp}
+\label{sec:i_stim-clamp}
+
+\begin{verbatim}
+ ##I-clamp
+ Vm = Vm + dt*(-1.0d3/Cm * (I_Na + (SUM(I_dhpr) + I_dhpr_nj_T)/Am + I_k1 + &
+                I_Kss + I_Ktof + I_Ktos + I_ncx  + I_NaK + I_pmca + I_bNa +
+                I_bCa + I_bK + I_app))   
+\end{verbatim}
+with 
+\begin{verbatim}
+I_app = I_stim * 1d-3 /Am
+\end{verbatim}
+with \verb!I_stim! in nA, and Am is the membrane area (cm$^2$).
+
+\section{Voltage clamp}
+\label{sec:Vm-clamp}
+
+When switching from one value to another, in analog system, it takes a certain
+amount of time call ``ramping time''. In a digital system, this ramping time is
+zero. 
+
+METHOD 1: So, in Voltage clamp, if we assume ramping time is zero, we just
+switch $V_m$ from $V_\rest$ to $V_\stim$ (ON simulation), and from $V_\stim$
+back to $V_\rest$ (OFF simulation).
+
+
+METHOD 2: Using analog-based concept, the Volage increase from $V_\rest$ to
+$V_\stim$ within a time period called ramping time \verb!ramp_time=1! (ms). 
+
+
+However, this may cause instability in numerical simulation. One protocol being
+used is suggested in \citep{santana1996}: Cells were held at -80 mV. Before a
+test depolarization, cells were depolarized to -50 mV by a slow
+(500-millisecond) voltage ramp and held at -50 mV for 50 milliseconds before
+test depolarizations were applied. After the test depolarization, the membrane
+potential was returned to -80 mV.
+
+
+
+\section{GPU - ECC}
+\label{sec:gpu-ecc}
+
+Data mapping to constant memory
+\begin{lstlisting}
+int_ca = (/ NSFU, N_R, maxnkv1, maxnkv2, maxnkm1, & !5
+     maxnkm2, maxnkp1, maxnkp2, maxnkv1+maxnkv2+maxnkm1+maxnkm2+maxnkp1+maxnkp2-5, 0 & ! 10
+     /)
+!beta_ds : 12 --> 6
+    dp_ca = (/ -Ej*0.5d0, Ecc, Eoo, k_jsr0, k_jsr1, & ! 5
+     beta_ds, inv_lambda_ds, inv_lambda_jsr, v_ryr, v_refill, & ! 10
+     v_efflux, 0.d0, P_dhpr, eta_RyR , eta_LCC, &  ! 15
+     F2zCa2_RT, inv_2FVmyo, 0.341d0*Ca_o, Km_jsr, B_jsrT &  ! 20
+ /)
+\end{lstlisting}
+
+Device memory
+\begin{verbatim}
+RYRgate_dev, 
+U_Ro_dev
+I_dhpr_dev
+indexPdt_dev
+
+# new
+DHPRgate_dev
+U_Lo_dev
+J_ryr_dev
+\end{verbatim}
+
+\section{Gain}
+\label{sec:gain}
+
+There are two types of gain: integral gain and peak gain.
+
+The integral gain (\verb!INTEGRAL_GAIN!) is defined as 
+\begin{equation}
+  \label{eq:50}
+  \text{INTEGRAL GAIN} = \frac{\int J_\ryr^T dt}{\int J_\dhpr^T dt}
+\end{equation}
+An approximate formula is
+\begin{equation}
+  \label{eq:51}
+  \text{INTEGRAL GAIN} = \frac{\sum J_\ryr^T}{\sum J_\dhpr^T}
+\end{equation}
+
+The peak gain (\verb!PEAK_GAIN!) is the ratio of the peak of Jryr flux over the
+peak of Jdhpr flux.
+
+
+
+\section{Integrated RyR Flux}
+\label{sec:mass_Ca_via_RyR}
+
+To tell the amount of $\Ca$ ($\mu$M) released via RyR during a certain time, we
+use $\int J_\ryr dt$ which can be done numerically as
+\begin{lstlisting}
+accumulatedRyRCa = 0
+Jryr_prev = 0
+time_prev = time
+do simulation loop
+   if (time_prev - time .ge. check_point) then 
+      accumulatedRyRCa += (Jryr_prev + Jryr)/2 * (time - time_prev)
+      time_prev = time
+      Jryr_prev = Jryr
+   endif
+enddo  
+\end{lstlisting}
+
+\section{Data I/O - HDF5}
+\label{sec:ecc_data_io}
+
+The data structure is similar to that being discussed for ``leak'' model
+(Sect.\ref{sec:leak_hdf5}). 
+
+
+The structure of the file is given
+\begin{verbatim}
+  TYPE(HDFFILE) :: file_struct
+  
+  INTEGER, PARAMETER :: MAX_NUM_HANDLE = 10
+  TYPE HDFFILE
+     INTEGER(HID_T) :: file_ID
+     INTEGER(HID_T), DIMENSION(MAX_NUM_HANDLE) :: arr_dspace ! (data) space
+     INTEGER ::  num_dspace
+     INTEGER(HID_T), DIMENSION(MAX_NUM_HANDLE) :: arr_dset ! dataset
+     INTEGER :: num_dset
+     INTEGER(HID_T), DIMENSION(MAX_NUM_HANDLE) :: arr_plist !property list
+     INTEGER :: num_plist
+  END TYPE HDFFILE
+\end{verbatim}
+
+\begin{enumerate}
+  \item To create a file
+  \begin{verbatim}
+CALL h5fcreate_f(TRIM(filename), H5F_ACC_TRUNC_F, file_ID, hdf_error, &
+         H5P_DEFAULT_F.H5P_DEFAULT_F)
+file_struct%file_ID = file_ID
+  \end{verbatim}
+  
+  
+\end{enumerate}
+
+\section{Restart file}
+\label{sec:ecc_restart_file}
+
+
+\section{Detect Cluster State Index}
+
+The function \verb!get_index_XXXcluster_numXXXopen!(ii) return the index from
+that we know that there are $ii$ channel opens.
+
+\begin{verbatim}
+    !! this data is being used for caffeine OR trigger RYR simulation 
+    IF (.NOT. ALLOCATED(index_RYRcluster_numRYRopen)) ALLOCATE(index_RYRcluster_numRYRopen(0:N_R))
+    CALL get_index_XXXcluster_numXXXopen(N_R, irow_R, NSFU, U_Ro, &
+         index_RYRcluster_numRYRopen)
+
+    !! this data is being used for trigger LCC simulation 
+    IF (.NOT. ALLOCATED(index_LCCcluster_numLCCopen)) ALLOCATE(index_LCCcluster_numLCCopen(0:N_L))
+    CALL get_index_XXXcluster_numXXXopen(N_L, irow_L, NSFU, U_Lo, &
+         index_LCCcluster_numLCCopen)
+\end{verbatim}
+
+\section{LCC model (Sun et al. - 2000)}
+
+\begin{verbatim}
+! association/dissociation constant Ca-CM
+kp_CM = 2.4d1 ! 1/(uM.s)
+km_CM = 38d0  ! 1/s
+\end{verbatim}

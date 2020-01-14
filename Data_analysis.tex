@@ -1,0 +1,156 @@
+\chapter{Data analysis}
+
+\section{Spark/Blink analysis}
+\label{sec:spark-analysis}
+
+Spark detection is dependent upon number of RyR opens. Blink detection
+is dependent upon the recovery of local luminal $\Ca$ recovery in the
+junctional-SR. For different versions, see Sect.\ref{sec:Spark_analysis_code}.
+
+A quark is defined as the local release with a few RyR opening that
+doesn't trigger a spark. To detect spark frequency, we find the ratio 
+Nspark/Nquarks.
+
+\begin{lstlisting}
+flag1[1..NSFU] = 0  ! if spark start
+flag2[1..NSFU] = 0  ! if blink start
+flag3[1..NSFU] = 0  ! if spark rise
+flag4[1..NSFU] = 0  ! if true spark
+prev_RyRopen[1..NSFU] = 0
+Nquarks[1..NSFU] = 0   ! a quark is the release from a few opening RyRs
+Nsparks[1..NSFU] = 0
+Nblinks[1..NSFU] = 0
+BlinkDuration[1..NSFU] = 0
+SparkDuration[1..NSFU] = 0
+
+DO ii = 1..t_end      
+   DO nn = 1, NSFU
+     ! spark start
+     IF (number_RyRopen[nn] .GE. 1 .AND. flag1[nn] .EQ. 0)
+        flag1[nn] = 1; flag2[nn] = 1; flag3[nn] = 1;
+        t1[nn] = ii; // start spark
+        t2[nn] = ii; // start blink
+        prev_RyRopen[nn] = number_RyRopen[nn]
+     ENDIF
+     ! detect quarks
+     IF (number_RyR_open .EQ. 0 .AND. flag1[nn] .EQ. 1 
+          .AND. flag4 .EQ. 0)
+         ! count # of blinks with 1,2,3... RyR opens
+         Nquarks [nn,prev_RyRopen[nn]] = NQ[nn,prev_RyRopen[nn]] + 1 
+         ! reset flags
+         flag1[nn] = 0; flag2[nn] = 0; flag3[nn] = 0;
+     ENDIF
+     ! spark peak
+     IF (number_RyRopen[nn] .GT. float(nR)/1.1d0 .AND. 
+          flag1[nn] .EQ. 1 .AND. flag3[nn] .EQ. 1)
+        Nspark[nn] = Nspark[nn] + 1
+        flag3[nn] = 0; flag4[nn] = 1;
+     ENDIF
+     ! spark termination 
+     IF (number_RyRopen[nn] .EQ. 0 .AND. flag1[nn] .EQ. 1 .AND.
+           flag4[nn] .EQ. 1)
+        flag1[nn] = 0; 
+        Nspark[nn] = Nspark[nn] + 1
+        SparkDuration[nn] = SparkDuration[nn] + (ii-t1[n])
+     ENDIF
+     ! blink detection
+     IF (Ca_jsr[nn] .GT. 0.99 * Ca_nsr .AND. flag2[nn] .EQ. 1 .AND.
+           flag4[nn] .EQ. 1)
+         flag4[nn] = 0; flag2[nn] = 0
+         Nblink[nn] = Nblink[nn] + 1;
+         BlinkDuration[nn] = BlinkDuration[nn] + (ii-t2[nn])
+     ENDIF
+   ENDDO
+ENDDO
+
+Nspark = sum(Nspark)
+Nblink = sum(Nblink)
+BlinkDuration = BlinkDuration / Nblink
+SparkDuration = SparkDuration / Nspark
+Avg_BlinkDuration = avg(BlinkDuration)
+Avg_SparkDuration = avg(SparkDuration)
+Std_SparkDuration = std(SparkDuration)
+Std_BlinkDuration = std(BlinkDuration)
+
+SF = Nspark/Nblink ???? what for
+
+SparkPeaks
+Avg_SparkPeak = mean(SparkPeaks)
+Std_SparkPeak = std(SparkPeaks)
+SFDHM = spark full-width-half-maximum
+      = when cads between 
+BFDHM = blink full-width-half-maximum
+\end{lstlisting}
+
+\subsection{4 Leak}
+\label{sec:leak_spark-analysis}
+
+We use \verb!spark_analysis()!.
+
+\subsection{4 ECC}
+\label{sec:ecc_spark-analysis}
+
+
+We use \verb!spark_analysis_2()!	
+
+\subsection{4 spatials}
+
+% \section{Spark Analysis}
+% \label{sec:spatial_spark-analysis}
+ 
+In spatial code, there is a change to detect the peak correctly. The reason is
+that the peak is higher than the value at which all RyR opening at the first
+time. So, we need to use a variable to keep track of the calcium subspace, and
+detect it as peak when it first decrease.
+\begin{verbatim}
+ALLOCATE(Ca_ds_prev_dev(NSFU), stat=iserror)
+\end{verbatim}
+This is done in the subroutine \verb!spark_analysis_3()! (See
+Sect.\ref{sec:Spark_analysis_code}).
+
+
+\subsubsection{Cmyo transient, CaF transient}
+\label{sec:cmyo-caf_spatial}
+
+The level of calcium is measured via CaF. So, we use $[\CaF]$ or F/F0 or
+$F_\norm$ to compared with experimental data. The data measured from microscope
+is a sphere of radius $2\mum$. 
+
+However, if we use the cube of radius $2\mum$, we'll take extra data point, and
+thus may cause the level of calculated aeraged CaF lower. A solution to choose:
+\begin{enumerate}
+  \item only take the data from grid point fall inside the sphere of radius
+  $1\mum$. 
+  \item calcualte from the cube, yet with a smaller size, i.e. $1.8\mum$.
+\end{enumerate} 
+
+
+\subsubsection{FWHM (Full-Width Half-Max)}
+\label{sec:FWHM}
+ 
+How to detect FWHM? 
+\begin{enumerate}
+  \item From the CRU location (x,y,z), Detect the time at peak t0.
+   \item extract the single layer (x,y) at time t0
+   \item extend on 2 directions (dx, dy), stop when (x-dx,y-dy) $<$ 1/2 peak. 
+   \item return 2dx
+\end{enumerate}
+
+
+Other code versions can be referenced in Sect.\ref{sec:Spark_analysis_code}.
+
+% \subparagraph{4 Spatial }
+% \label{sec:spatial_spark-analysis}
+% 
+% We use \verb!spark_analysis_3()! and \verb!spark_analysis_3D()!, which deals
+% with peak not at the first all RyR openings.
+
+
+% 
+% \subsection{4 Spatial with rogue RyRs}
+% \label{sec:spatial_spark-analysis-rogueRyR}
+% 
+% We use \verb!spark_analysis_rogueRyR()!. 
+% 
+
+

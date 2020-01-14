@@ -1,0 +1,37 @@
+\chapter{Algorithms}
+
+\section{Heterogeneous compact-form (UFMCMC v1a)}
+
+\section{Heterogeneous compact-form (UFMCMC v1b)}
+
+\section{New compact-form (UFMC v2)}
+
+
+When a new model is developed, we need 
+\begin{enumerate}
+  \item Add new item in the macro.h file and select to that model for
+  \verb!_LCC_MODEL!
+  
+  \item Add new .inc file (e.g. \verb!Update_LCC_Sun2000.inc!)
+  \item Add new .conf file (e.g. \verb!LCC_Markov_Sun2000.conf!), and add
+  functions to read this file.
+\begin{verbatim}
+  #if _LCC_MODEL_ == _SUN2000                                                                                                                                                                                                  
+  CHARACTER(FILENAME_LENGTH), PARAMETER :: LCC_Markov_filename = "LCC_Markov_Sun2000.conf"                                                                                                                                     
+  #elif _LCC_MODEL_  == _WILLIAMS2013_NEWALGORITHM                                                                                                                                                                             
+  CHARACTER(FILENAME_LENGTH), PARAMETER :: LCC_Markov_filename = "LCC_Markov_Williams_7state_newalgorithm.conf"                                                                                                                
+  #elif _LCC_MODEL_ == _WILLIAMS2013                                                                                                                                                                                           
+  CHARACTER(FILENAME_LENGTH), PARAMETER :: LCC_Markov_filename = "LCC_Markov_Williams_7state.conf"                                                                                                                             
+  #elif _LCC_MODEL_ == _MOROTTI2012                                                                                                                                                                                            
+  CHARACTER(FILENAME_LENGTH), PARAMETER :: LCC_Markov_filename = "LCC_Markov_Morotti2012.conf" 
+  #endif
+\end{verbatim}  
+
+  \item Add new variables, if needed.
+  \item Add new 
+\begin{verbatim}
+get_compPdt_Sun2000()
+updateSystem_Sun2000()
+\end{verbatim}  
+
+\end{enumerate}

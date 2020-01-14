@@ -1,0 +1,1639 @@
+\chapter{General setting and conventions}
+\label{chap:fortran-code-tuan}
+
+\def\Na{{\text{Na}^+}}
+\def\Cl{{\text{Cl}^-}}
+\def\inj{{\text{inj}}}
+
+\section{Introduction}
+
+This document was written as a supplement to the Fortran code developed by Tuan
+M. Hoang-Trong as part of his PhD thesis on modelling cardiac ventricular
+myocyte. The model started with LEAK code (Chap.\ref{sec:ca2+-leak-}) which
+simulates the gating of RyR ion channels in thousands of release site units.
+The code was then extended to model the stochastic EC-coupling of the rat
+ventricular myocytes (Chap.\ref{sec:ec-coupling}). In the two code above, both
+CPU and GPU versions are available.
+
+A 3D model of the rat ventricular myocytes was then developed using
+GPU-technology, i.e. no CPU version for this code. There are two variants of the
+code was developed. The first code was designed with no rogue-RYR (satellite
+RYR) (Chap.\ref{chap:spatial-cell}) and then with rogue-RYR
+(Chap.\ref{chap:small_RyR_cluster}). One code for atrial cell was also developed
+(Chap.\ref{chap:spatial_atrial_cell}).
+
+\section{Unit conversion}
+\label{sec:unit-conversion}
+
+NOTE: concentration: Molar (M) = mole/litre, uM = $\mu$mol/litre
+\begin{eqnarray}
+  \label{eq:4}
+  1 \mol = 6.02 \times 10^{23} \text{atoms} \\
+  \text{M = mol/L} = 10^6 \mu \text{mol/L} = 10^6 \mu\text{M}
+\end{eqnarray}
+
+NOTE: 1 Jule = work to move an electric charge (1Coulomb) through an
+electric potential difference of 1Volt, or 1 (J) = 1 (C.V)
+\begin{equation}
+  \label{eq:7}
+  1\text{ (mJ)} = 1 \text{ (C.mV)}
+\end{equation}
+
+Here, we assume the current is $u$A/cm$^2$.
+We can use  $\mu$A/cm$^2$ or $\mu$A/$\mu$F interchangebly as the
+specific membrane capacity is $\Csc=1.00\mu$F/cm$^2$.
+
+\begin{framed}
+  NOTE: 1 Ampere = 1 (A) = 1 (C/sec) = (F.V/sec)
+
+  NOTE: 1 Siemen = 1 (S) = 1 (A/V)
+\end{framed}
+
+
+
+All volume need to be converted into (pL).
+\begin{verbatim}
+1 (pL) = 1d-12 (L) = 1d-6 (uL) 
+    = 1d-12 (dm^3) = 1d-15 (m^3) 
+    = 1d3 (um^3) = 1d-9 (cm^3)
+1 (L)  = 1 (dm^3) = 1d3 (cm^3) 
+\end{verbatim}
+
+NOTE: 1 Coulomb = 1 (C) = 1 (Ampere.sec) = 1 (A.sec) = 1 (Fara.Volt) =
+1 (F.V)
+
+\begin{verbatim}
+1 (cm) = 1e-2 (m) = 1e-2x1e6 (um) = 1e4 (um) 
+
+1 (cm^2) = 1e-4 (m^2) = 1e-4x1e12 um^2 = 1e8 (um^2)
+
+1 (cm^3) = 1e-6 (m^3) = 1e-6x1e18 um^3 = 1e12 (um^3)
+
+1 (m)  = 1d9 (nm) = 1d6 (um)
+1 (dm) = 1d8 (nm) = 1d5 (um)
+1 (L)  = 1 (dm^3) = 1d24 (nm^3) = 1d15 (um^3)
+1 (pL) = 1d-12 (L) = 1d-12 (nm^3) = 1d3 (um^3)
+\end{verbatim}
+
+\subsection{Standard units }
+\label{sec:standard-units-}
+
+Using the convention
+\begin{equation}
+  \label{eq:25}
+  \Csc\frac{dV_m}{dt} = -( I_\ion + I_\stim) 
+\end{equation}
+with the unit of $\Csc$ is $\mu$F/cm$^2$, and $V_m$ is mV; while
+$I_\ion$ is in $\mu$A/cm$^2$. Then quantitatively, we need to convert
+$\Csc$ to mF/cm$^2$, by using
+
+\begin{equation}
+  \label{eq:49}
+  10^{-3}\Csc\frac{dV_m}{dt} = -( I_\ion + I_\stim)   
+\end{equation}
+
+with the ionic current density ($\mu$A/cm$^2$)
+\begin{equation}
+  \label{eq:26}
+  I_\ion = I_\Na + I_\Kr + I_\Ks + I_\CaL + ...
+\end{equation}
+%All the ionic currents are defined based on $V_\myo^T$. 
+
+\begin{framed}
+Membrane currents and membrane conductance are often normalized to the
+cell membrane capacitance, i.e. pA/pF. This approach takes advantage
+of the fact that ``specific capacitance'' of cell membrane is
+$\Csc\sim 1\mu$F/cm$^2$ which is fairly constant among different
+muscle cell types and species.  So, the cell capacitance is often used
+to estimate the surface membrane area of the cells, and an indirect
+index to cell volume. 
+In other words, the density can be defined based on a unit of membrane area or a
+unit of membrane capacity. The eq.\ref{eq:26} use the first approach. The
+following formula use the latter apporach, i.e. some literatures use 
+  \begin{equation}
+    \label{eq:27}
+    \frac{dV_m}{dt} = -( I_\ion + I_\stim) 
+  \end{equation}
+  where the specific membrane capacitance $\Csc$ is now incorporated
+  into the ionic current, so the ionic current density is in unit
+  ($\mu$A/$\mu$F) (or pA/pF), rather than current per unit membrane area,
+  e.g. ($\mu$A/cm$^2$). Quantitatively, there is no change in the value of
+  individual ionic current when changing from [ampere/$\mu$F] to
+  [ampere/cm$^2$], as $\Csc=1\mu$F/cm$^2$. That's why this is the source of
+  mistakes when reading papers using different conventions.
+\end{framed}
+
+\begin{enumerate}
+\item Membrane potential: (mV)
+\item Membrane (ionic) current: ($\mu$A/cm$^2$)  (or some models use (pA/pF) or (uA/uF))
+\item Membrane conductance: (mS/cm$^2$)          (or some models use (mS/uF))
+\item Ionic fluxes: (uM/sec) or (mM/ms)
+\item Concentration: (uM)
+\item Time constant: (s)
+\item Rate constant: (s)
+\item Stimulus current: (nA), e.g. -1 (nA) is the max that most equipments
+  can do, $I_\stim=\frac{-1\times 10^{-3}}{\Am}$ (uA/cm$^2$), with $\Am$ is the
+  plasma membrane area. 
+\end{enumerate}
+
+\textcolor{red}{However, there are some current that're being
+  calculated at whole-cell level, e.g. $I_{\dhpr,\nj}$ and
+  $I_\dhpr^\ii$, where the unit is ($\mu$A)}.
+
+
+
+
+
+\section{Current (pA) and number of ions (moles)}
+
+1(pA) is $10^{-12}$ (A) = $10^{-12}$ (Coulomb/sec).
+
+\begin{enumerate}
+  \item 1 mole of electrons (-e) carries \verb!F = 96,485! Coulombs of electric
+  charge
+  
+NOTE: F = 96,485 (Coulomb/mole) is Faraday constant.
+  
+  \item 1 mole of univalent ions (+e or -e), such as $\Na$, $\Cl$, carries
+  \verb!F! Coulombs of electric charge
+  
+  \item 1 mole of divalent ions (e.g. $\Ca$), carries $(z_\text{ion} \times F)$
+  Coulombs of electric charge.
+  
+NOTE: $z_\text{ion}=2$ is the valence of the divalent ion.
+\end{enumerate}
+
+So, 1 mole of any ion carries $(z_\text{ion}\times F)$ Coulomb of electric
+charges.
+In other words, 1 Coulomb of electric charge is carried by
+$\frac{1}{z_\text{ion} \times F}$ mole of such ion.
+
+So, $I$ (pA) of $\Ca$ ions means the transfer rate is
+$\frac{10^{-12}\times I}{z_\ca F}$ (mole/sec) or $\frac{10^{-6}\times I}{z_\ca F}$ ($\mu$mole/sec)
+or $\frac{10^{-9}\times I}{z_\ca F}$ ($\mu$mole/msec).
+If such ion flux transfer to a region of volume $V$, we can convert to
+concentration flux, 
+\begin{equation}
+\frac{10^{-6}\times I}{z_\ca \times F \times V} \qquad \text{($\mu$M/sec).}
+\end{equation}
+
+
+\section{Convert current flux (pA/cm$^2$) to concentration flux (mM)}
+\label{sec:convert-current-density-to-concentration}
+
+Recall that one molar is one mole per liter or one mole per 1000 cubic
+centimeters.
+
+Faraday's constant, 96,485 Coulomb/mole, means the number of Coulomb per mole of
+electron.
+
+\subsection{Current density $I_x$ ($\mu$A/cm$^2$) to concentration flux $J_x$
+(mM/msec)}
+
+Input: current $I_X$ ($\muA$/cm$^2$).
+
+% Suppose the valance of the ion is $z$. Then $\frac{I_X}{(zF)}$ gives us
+% the transmembrane flux in units of $\muM$/cm/s.
+% To convert this into a concentration flux, we suppose that the ions collect in a
+% thin layer of depth d (in microns, i.e. $\mum$) near the surface of the cell.
+% Thus, the change in concentration is $I_X/(zdF)$ .
+
+We study the change of ions $X$ collected in a volume  before the membrane, i.e.
+a thin layer of depth $d$, is
+\begin{equation}
+J = \frac{I_x}{z_x . F . d} = \frac{10 I_x }{z_x.F.d} \qquad
+\text{[mole/(sec.L)]}
+\end{equation}
+with F = 96,485 Coulomb/mole, d (in $\mum$).
+Another equivalent unit for $J$ is [mM/msec].
+
+
+Output: mM/msec = millimoles per liter per millisecond.
+
+
+SUMMARY: The total in(out)flux of ions across the thin volume layer
+\begin{equation}
+f_X = 10 I_X / (z.F.d)
+\end{equation}
+with F = 96,485 (C/mole), $d$ (depth: $\mum$), $I_X$ (mA/cm$^2$).
+
+\subsection{Current density $I^\cdot_x$(pA/$\mum^2$) to total current (pA)}
+
+Suppose the cross-sectional area is $A$ ($\mum^2$), then the total current I
+(pA) is
+\begin{equation}
+I_\inj = I^\cdot_X \times A   \qquad \text{(pA)}
+\end{equation}
+
+%\subsection{Total current (pA) to concentration }
+%\subsection{$I_x$ ($\mu$A/cm$^2$) to $J_x$ (mM/msec)}
+
+
+\section{Cell Volume, Cross-sectional area, and Surface membrane area}
+\label{sec:cell_volume}
+
+The study to direct the cross-sectional cell area to the cell volume
+is given by Satoh et al. (1996). Say for rat
+\begin{verbatim}
+Cell Volume (pL) = 7.59x1d-3 (pL/um^2) * cross-sectional-area
+\end{verbatim}
+Between cell volume and sarcolemma surface area, we use the
+formula~\citep{page1978}
+\begin{verbatim}
+surface-area = Vol (pL) * 0.5 (1/um)
+\end{verbatim}
+or
+\begin{verbatim}
+surface-area (cm^2) = (((Vol (pL) * 1e3) [um^3] * factor (1/um)) * 1e-8) (cm^2)
+\end{verbatim}
+with \verb!factor! is about 0.5. In our case, we use 0.426 which give surface
+area as 1.534d-4 (cm$^2$) from Vol=36 (pL).
+
+
+% However, we don't know the direct
+% relation between cell volume and sarcolemma surface area. Maybe a
+% simple rescale with the same ratio is good enough?
+
+\section{Buffers}
+\label{sec:buffers}
+
+Buffers are proteins or species that $\Ca$ bind to (1) reduce the amount of free
+calcium, (2) perform calcium signalling. In subspace, calcium can bind
+to (1) calmodulin (CaM), (2) sarcolemma, and (3) SR.
+
+In myoplasm, calcium can bind to (1) calmodulin (CaM), and (2) troponin (high
+and low). Typically, Troponin is modeled as explicit buffer, and CaM is modeled
+as fast buffer.
+
+In JSR, a large amount of calcium is bound to calsequestrin (CSQ2) and is
+modeled as fast buffer. 
+
+In NSR, CaMKII is the buffer ...
+
+% \section{Fast buffering}
+% \label{sec:fast-buffering}
+
+Using fast buffering, the buffering fraction
+\begin{verbatim}
+## CaM-liked buffer
+beta_myo                                                [unitless]
+         = 1.0d0 /(1.0d0 + (B_myoT * Km_myo)/((Km_myo + Ca_myo)**2))
+\end{verbatim}
+\begin{equation}
+  \label{eq:20}
+  \beta_\myo = \left( 1+ \frac{[\B]_\myo^T.K_{m,\myo}}{(K_{m,\myo}+[\Ca]_\myo)^2}\right)^{-1}
+\end{equation}
+\begin{verbatim}
+## CSQ2-like buffer
+beta_jsr 
+       = 1d0/( 1d0 + (B_jsrT * Km_jsr)/((Km_jsr + Ca_jsr(ii))**2))               
+\end{verbatim}
+\begin{equation}
+  \label{eq:21}
+  \beta_\jsr = \left(1+ \frac{[\B]_\jsr^T.K_{m,\jsr}}{(K_{m,\jsr}+[\Ca]_\jsr)^2}\right)^{-1}
+\end{equation}
+Buffering fraction in the NSR, and subspace is assumed to be fixed (see
+\verb!beta_ds!, \verb!beta_nsr!). However, we can also use dynamics form with
+\begin{equation}
+\beta_\ds = \left( 1+
+\frac{[\B]_\myo^T.K_{m,\myo}}{(K_{m,\myo}+[\Ca]_\ds)^2}\right)^{-1}
+\end{equation}
+
+
+\section{Balance equations}
+\label{sec:balance-equations}
+
+\subsection{Non-spatial}
+\label{sec:balance-eq_non-spatial}
+
+The concentration of calcium in each component is defined based on the volume of
+that component. To account for the balance of calcium in a closed system, we
+have the net change in number of moles should be equal to zero at steady-state
+condition (Sect.\ref{sec:steady_state})
+\begin{equation}
+  \label{eq:5}
+  \begin{split}
+    V_\myo^T \frac{d[\Ca]_\myo}{dt} + \sum^\NSFU 
+  \left(V_\ds\frac{d[\Ca]_\ds}{dt}\right) + \sum^\NSFU
+  \left(V_\jsr\frac{d[\Ca]_\jsr}{dt}\right) + \\
+  V_\nsr^T
+  \frac{d[\Ca]_\nsr}{dt} + V_\myo^T \frac{d[\CaBhtrpn]}{dt} + V_\myoT
+  \frac{d[\CaF]}{dt} = 0
+  \end{split}
+\end{equation}
+% or
+% \begin{equation}
+%   \label{eq:6}
+%   V_\myo^T \frac{d[\Ca]_\myo}{dt} + \sum 
+%   \left(V_\ds\frac{d[\Ca]_\ds}{dt}\right) + \sum
+%   \left(V_\jsr\frac{d[\Ca]_\jsr}{dt}\right) + V_\nsr^T
+%   \frac{d[\Ca]_\nsr}{dt} + \frac{d[\Cahtrpn]}{dt} = 0  
+% \end{equation}
+or
+\begin{equation}
+  \label{eq:3}
+  \begin{split}
+     \frac{d[\Ca]_\myo}{dt} + \sum^\NSFU 
+  \left(\frac{V_\ds}{V_\myo^T}\frac{d[\Ca]_\ds}{dt}\right) + \sum^\NSFU
+  \left(\frac{V_\jsr}{V_\myo^T}\frac{d[\Ca]_\jsr}{dt}\right) + \\
+  \frac{V_\nsr^T}{V_\myo^T} \frac{d[\Ca]_\nsr}{dt} + \frac{d[\CaBhtrpn]}{dt} +
+  \frac{d[\CaF]}{dt} = 0
+    \end{split}    
+\end{equation}
+By defining volume ratio
+\begin{equation}
+\lambda_\ds = \frac{V_\ds}{V_\myo^T};\;\;
+\lambda_\jsr = \frac{V_\jsr}{V_\myo^T};\;\;
+\lambda_\nsr = \frac{V_\nsr^T}{V_\myo^T}
+\end{equation}
+
+Given that all fluxes (Sect.\ref{sec:fluxes}) are defined based on \verb!VmyoT!,
+then
+\begin{verbatim}
+dCamyoT   = sum(J_efflux) + J_leak + J_sarcomem + J_ryr_njT -  
+            J_serca - J_trpn - J_CaF
+J_trpn = dCaBhtrpn
+J_CaF  = dCaF     
+\end{verbatim}
+So, when we calculate the concentration change in other compartments, we need to
+map the flux to the correct volume by using effective volume ratio, i.e. either
+multiplying with  $V_\myo^T/V_\text{reference volume}$ or dividing
+$\lambda_\text{reference volume} = V_\text{reference volume}/V_\myo^T$.
+To achieve that balance, the fluxes need to be mapped to the corresponding
+volume in the individual compartment, i.e. 
+\begin{verbatim}
+dCansrT = VmyoT/VnsrT * (J_serca - sum(J_refill) - J_leak - 
+            J_ryr_njT)
+dCads = VmyoT/Vds * (J_ryr - J_efflux)
+dCajsr = VmyoT/Vjsr * (J_refill - J_ryr)
+\end{verbatim}
+
+To consider fast buffering effect, we multiply the change with a buffering
+factor
+\begin{verbatim}
+dCamyoT = beta_myo * (sum(J_efflux) + J_leak + J_sarcomem  + 
+                      J_ryr_njT - J_serca - J_trpn - J_CaF) 
+
+dCansrT = beta_nsr/lambda_nsr * (J_serca - sum(J_refill) -
+                                    J_leak - J_ryr_njT)) 
+dCads = beta_ds/lambda_ds * (J_ryr - J_efflux))
+dCajsr = beta_jsr/lambda_jsr * (J_refill - J_ryr))
+\end{verbatim}
+with the buffering factors are given in Sect.\ref{sec:buffers}.
+
+Other Calcium-bound complexes
+\begin{verbatim}
+dCaBhtrpn = kon_htrpn*Ca_myo*(B_htrpnT - CaB_htrpn) - koff_htrpn*CaB_htrpn  
+dCaF = kon_F * (Ca_myo_in(current) * F_in(current)) - koff_F * CaF_in(current) 
+\end{verbatim}
+% The concentration of any ion (e.g. calcium) in different components is
+% defined based on the corresponding volume of that component. So, to
+% avoid any conversion, we map them to a single volume, which is the
+% myoplasmic volume $V_\myo^T$. If we define the volume fractions as
+% \begin{equation}
+%   \label{eq:23}
+%   \lambda_\nsr = \frac{\hat{V}_\ds}{\hat{V}_\myo^T} = \frac{V_\ds/\beta_\ds}{V_\myo^T/\beta_\myo}
+% \end{equation}
+% \begin{verbatim}
+%     lambda_ds = V_ds/V_myo_T
+%     lambda_jsr = V_jsr/V_myo_T
+%     lambda_nsr = V_nsr_T/V_myo_T
+% \end{verbatim}
+
+\subsection{Spatial}
+\label{sec:balance-eq_spatial}
+
+In the compartmental model, the concentrations of the species are defined based
+on the volume of the corresponding compartment containing the species. In
+spatial model, except calcium in the subspace and jSR, there's a change in the
+way we define concentration of calcium in the cytosol and network SR. The volume
+reference is for a single grid point, not for the whole compartment. Then,
+suppose $V_\myo, V_\nsr$ are the volumes of myoplasm and network SR for a single
+grid point, respectively.
+
+Again, we apply the balancing equation
+\begin{equation}
+\begin{split}
+ \sum V_\myo \frac{d[\Ca]_\myo}{dt} + \sum^\NSFU 
+  \left(V_\ds\frac{d[\Ca]_\ds}{dt}\right) + \sum^\NSFU
+  \left(V_\jsr\frac{d[\Ca]_\jsr}{dt}\right) + \\ 
+  \sum V_\nsr
+  \frac{d[\Ca]_\nsr}{dt} + \sum V_\myo \frac{d[\CaBhtrpn]}{dt} + \sum V_\myo
+  \frac{d[\CaF]}{dt} = 0
+\end{split}
+\end{equation}
+
+\subsubsection{Referenced volume for the fluxes is VmyoT}
+
+We keep using VmyoT as the reference volume for the fluxes. 
+\begin{equation}
+\begin{split}
+ \sum \frac{V_\myo}{V_\myo^T} \frac{d[\Ca]_\myo}{dt} +  
+   \sum\left(\frac{V_\ds}{V_\myo^T}\frac{d[\Ca]_\ds}{dt}\right) + 
+  \sum\left(\frac{V_\jsr}{V_\myo^T}\frac{d[\Ca]_\jsr}{dt}\right) + \\
+  \sum \left(\frac{V_\nsr}{V_\myo^T}\frac{d[\Ca]_\nsr}{dt} \right)+ \sum
+  \frac{V_\myo}{V_\myo^T} \frac{d[\CaBhtrpn]}{dt} + \sum \frac{V_\myo}{V_\myo^T}
+  \frac{d[\CaF]}{dt} = 0
+\end{split}
+\end{equation}
+which can be rewritten as
+\begin{equation}
+\begin{split}
+ \sum \frac{1}{\NGRID} \frac{d[\Ca]_\myo}{dt} +  
+  \sum\left(\frac{V_\ds}{V_\myo^T}\frac{d[\Ca]_\ds}{dt}\right) + 
+  \sum\left(\frac{V_\jsr}{V_\myo^T}\frac{d[\Ca]_\jsr}{dt}\right) + \\
+  \sum \left(\frac{1}{\NGRID}\frac{V_\nsr^T}{V_\myo^T}\frac{d[\Ca]_\nsr}{dt}
+  \right)+
+  \sum \frac{1}{\NGRID} \frac{d[\CaBhtrpn]}{dt} + 
+  \sum \frac{1}{\NGRID}\frac{d[\CaF]}{dt} = 0
+\end{split}
+\end{equation}
+with $\NGRID=\frac{V_\myo^T}{V_\myo}=\frac{V_\nsr^T}{V_\nsr}$ is the number of
+grid points.
+We rewrite it either
+\begin{enumerate}
+  \item Option 1:
+\begin{equation}
+\begin{split}
+ \sum \frac{d[\Ca]_\myo}{dt} + \NGRID  
+  \sum\left(\frac{V_\ds}{V_\myo^T}\frac{d[\Ca]_\ds}{dt}\right) + 
+  \NGRID \sum\left(\frac{V_\jsr}{V_\myo^T}\frac{d[\Ca]_\jsr}{dt}\right) + \\
+  \sum \left(\frac{V_\nsr^T}{V_\myo^T}\frac{d[\Ca]_\nsr}{dt}
+  \right)+
+  \sum \frac{d[\CaBhtrpn]}{dt} + 
+  \sum \frac{d[\CaF]}{dt} = 0
+\end{split}
+\end{equation}
+and defining volume ratio (the same as the way we define volume ratio in
+Sect.\ref{sec:balance-eq_non-spatial})
+\begin{equation}
+\lambda_\ds = \frac{V_\ds}{V_\myo^T};\;\;
+\lambda_\jsr = \frac{V_\jsr}{V_\myo^T};\;\;
+\lambda_\nsr = \frac{V_\nsr^T}{V_\myo^T}
+\end{equation}
+
+\item Option 2:
+\begin{equation}
+\begin{split}
+ \sum \frac{d[\Ca]_\myo}{dt} +   
+  \sum\left(\frac{V_\ds}{V_\myo}\frac{d[\Ca]_\ds}{dt}\right) + 
+  \sum\left(\frac{V_\jsr}{V_\myo}\frac{d[\Ca]_\jsr}{dt}\right) + \\
+  \sum \left(\frac{V_\nsr^T}{V_\myo^T}\frac{d[\Ca]_\nsr}{dt}
+  \right)+
+  \sum \frac{d[\CaBhtrpn]}{dt} + 
+  \sum \frac{d[\CaF]}{dt} = 0
+\end{split}
+\end{equation}
+and defining volume ratio (the same as the way we define volume ratio in
+Sect.\ref{sec:balance-eq_non-spatial})
+\begin{equation}
+\lambda_\ds = \frac{V_\ds}{V_\myo};\;\;
+\lambda_\jsr = \frac{V_\jsr}{V_\myo};\;\;
+\lambda_\nsr = \frac{V_\nsr^T}{V_\myo^T} = \frac{V_\nsr}{V_\myo}
+\end{equation}
+
+\end{enumerate}
+
+Given that all fluxes are defined based on VmyoT, then it need to be mapped to
+Vmyo (which is the reference volume of Camyo). NOTE: \textcolor{red}{The below
+fluxes are NOT affected by volume reference, Jncx, JCab, Jpmca, Jserca, Jtrpn,
+JCaF}. Collectively, the first three fluxes are mapped to \verb!J_sarcomem!.
+\begin{verbatim}
+dCamyo = (J_efflux)_{if CRU} * VmyoT/Vmyo + J_leak * VmyoT/Vmyo + 
+   J_sarcomem + J_ryr_nj_{if rogueRYR} * VmyoT/Vmyo - 
+   J_serca - J_trpn - J_CaF + 
+   Dmyox / dx^2 * (Camyo(i+1,j,k)-2*Camyo(i,j,k)+Camyo(i-1,j,k)) +
+   Dmyoy / dy^2 * (Camyo(i,j+1,k)-2*Camyo(i,j,k)+Camyo(i,j-1,k)) +
+   Dmyoz / dz^2 * (Camyo(i,j,k+1)-2*Camyo(i,j,k)+Camyo(i,j,k+1)) 
+dCaBhtrpn = J_trpn   !flux forming compound CaB_htrpn in myoplasm
+dCaF      = J_CaF    !flux forming compound CaF in myoplasm
+\end{verbatim}
+NOTE: To incorprate the effect of rogue RYR or peripheral RYR which sense the
+[Ca]myo, \verb!J_efflux! and \verb!J_ryr_nj! are substituted by
+only \verb!J_int2myo! in the calculation.
+
+To achieve the fluxes balancing, they need to be mapped to the corresponding
+volume
+\begin{verbatim}
+dCansr = Vmyo/Vnsr * (J_serca - (J_refill)_{if CRU} * VmyoT/Vmyo - 
+          J_leak * VmyoT/Vmyo - J_ryr_nj_{if rogueRYR) * VmyoT/Vmyo + 
+   Dnsrx / dx^2 * (Cansr(i+1,j,k)-2*Cansr(i,j,k)+Cansr(i-1,j,k)) +
+   Dnsry / dy^2 * (Cansr(i,j+1,k)-2*Cansr(i,j,k)+Cansr(i,j-1,k)) +
+   Dnsrz / dz^2 * (Cansr(i,j,k+1)-2*Cansr(i,j,k)+Cansr(i,j,k+1)) 
+   
+dCads = Vmyo/Vds * (J_ryr * VmyoT/Vmyo - J_efflux * VmyoT/Vmyo +
+                   J_dhpr*VmyoT/Vmyo) 
+dCajsr = Vmyo/Vjsr * (J_refill * VmyoT/Vmyo - J_ryr *
+                VmyoT/Vmyo)
+
+J_dhpr = I_dhpr * 1/(zCa*zF*Vol_ref)
+Vol_ref = VmyoT
+\end{verbatim}
+NOTE: To incorprate the effect of rogue RYR or peripheral RYR which sense the
+[Ca]nsr, \verb!J_refill! and \verb!J_ryr_nj! is substituted by \verb!J_nsr_lost!
+in the calculation.
+
+
+To incorporate the effect of fast buffering, we do
+\begin{verbatim}
+dCansr = beta_nsr * [ Vmyo/Vnsr * (J_serca - (J_refill)_{if CRU} * VmyoT/Vmyo - 
+          J_leak * VmyoT/Vmyo - J_ryr_nj_{if rogueRYR) * VmyoT/Vmyo + 
+   Dnsrx / dx^2 * (Cansr(i+1,j,k)-2*Cansr(i,j,k)+Cansr(i-1,j,k)) +
+   Dnsry / dy^2 * (Cansr(i,j+1,k)-2*Cansr(i,j,k)+Cansr(i,j-1,k)) +
+   Dnsrz / dz^2 * (Cansr(i,j,k+1)-2*Cansr(i,j,k)+Cansr(i,j,k+1)) 
+                   ]
+                   
+dCads = beta_ds * [ Vmyo/Vds * (J_ryr * VmyoT/Vmyo - J_efflux * VmyoT/Vmyo +
+                   J_dhpr)
+                  ] 
+dCajsr = beta_jsr * [ Vmyo/Vjsr * (J_refill * VmyoT/Vmyo - J_ryr *
+                VmyoT/Vmyo)
+                  ]
+J_dhpr = I_dhpr * 1/(zCa*zF*Vol_ref)
+Vol_ref = Vmyo
+\end{verbatim}
+
+
+
+\subsubsection{Referenced volume for the fluxes is Vmyo}
+
+Assuming all grid points have the same cytosolic volume $V_\myo$.
+\begin{equation*}
+\begin{split}
+ \sum \frac{d[\Ca]_\myo}{dt} +  
+   \sum\left(\frac{V_\ds}{V_\myo}\frac{d[\Ca]_\ds}{dt}\right) + 
+  \sum\left(\frac{V_\jsr}{V_\myo}\frac{d[\Ca]_\jsr}{dt}\right) + \\
+  \sum \left(\frac{V_\nsr}{V_\myo}\frac{d[\Ca]_\nsr}{dt} \right)+ \sum
+  \frac{d[\CaBhtrpn]}{dt} + \sum \frac{d[\CaF]}{dt} = 0
+\end{split}
+\end{equation*}
+
+By defining volume ratio, notice that the cytosolic volume is for a single grid
+point
+\begin{equation}
+\lambda_\ds = \frac{V_\ds}{V_\myo};\;\;\;
+\lambda_\jsr = \frac{V_\jsr}{V_\myo};\;\;\;
+\lambda_\nsr = \frac{V_\nsr}{V_\myo}
+\end{equation}
+
+Given that all fluxes are defined based on Vmyo (single grid-point), then 
+\begin{verbatim}
+dCamyo = (J_efflux)_{if CRU} + J_leak + J_sarcomem + J_ryr_nj_{if rogueRYR} -
+   J_serca - J_trpn - J_CaF + 
+   Dmyox / dx^2 * (Camyo(i+1,j,k)-2*Camyo(i,j,k)+Camyo(i-1,j,k)) +
+   Dmyoy / dy^2 * (Camyo(i,j+1,k)-2*Camyo(i,j,k)+Camyo(i,j-1,k)) +
+   Dmyoz / dz^2 * (Camyo(i,j,k+1)-2*Camyo(i,j,k)+Camyo(i,j,k+1)) 
+J_trpn = dCaBhtrpn  !flux forming compound CaB_htrpn in myoplasm
+J_CaF  = dCaF       !flux forming compound CaF in myoplasm
+\end{verbatim}
+with \verb!J_sarcomem! is described in Sect.\ref{sec:trans-sarc-flux}.
+To achieve the fluxes balancing, they need to be mapped to the corresponding
+volume
+\begin{verbatim}
+dCansr = Vmyo/Vnsr * (J_serca - (J_refill)_{if CRU} - J_leak - 
+   J_ryr_nj_{if rogueRYR) + 
+   Dnsrx / dx^2 * (Cansr(i+1,j,k)-2*Cansr(i,j,k)+Cansr(i-1,j,k)) +
+   Dnsry / dy^2 * (Cansr(i,j+1,k)-2*Cansr(i,j,k)+Cansr(i,j-1,k)) +
+   Dnsrz / dz^2 * (Cansr(i,j,k+1)-2*Cansr(i,j,k)+Cansr(i,j,k+1)) 
+   
+dCads = Vmyo/Vds * (J_ryr - J_efflux + J_dhpr)
+dCajsr = Vmyo/Vjsr * (J_refill - J_ryr)
+
+J_dhpr = I_dhpr * 1/(zCa*zF*Vol_ref)
+Vol_ref = Vmyo
+\end{verbatim}
+
+To consider the fast buffering effect, finally, we have
+\begin{verbatim}
+dCamyo = beta_myo * [(J_efflux_{if CRU} + J_leak + J_sarcomem + 
+           J_ryr_nj_{if rogueRYR} - J_serca - J_trpn - J_CaF) + 
+       Dmyox / dx^2 * (Camyo(i+1,j,k)-2*Camyo(i,j,k)+Camyo(i-1,j,k)) + 
+       Dmyoy / dy^2 * (Camyo(i,j+1,k)-2*Camyo(i,j,k)+Camyo(i,j-1,k)) + 
+       Dmyoz / dz^2 * (Camyo(i,j,k+1)-2*Camyo(i,j,k)+Camyo(i,j,k+1)) 
+                    ]
+   
+dCansr = beta_nsr * [ (J_serca - J_refill_{if CRU} - J_leak -
+             J_ryr_nj_{if rogueRYR})/lambda_nsr + 
+       Dnsrx / dx^2 * (Cansr(i+1,j,k)-2*Cansr(i,j,k)+Cansr(i-1,j,k)) +
+       Dnsry / dy^2 * (Cansr(i,j+1,k)-2*Cansr(i,j,k)+Cansr(i,j-1,k)) +
+       Dnsrz / dz^2 * (Cansr(i,j,k+1)-2*Cansr(i,j,k)+Cansr(i,j,k+1)) 
+                   ]
+   
+dCads = beta_ds/lambda_ds * (J_ryr - J_efflux)
+dCajsr = beta_jsr/lambda_jsr * (J_refill - J_ryr)
+\end{verbatim}
+with \verb!beta_ds! is assumed to be calculated the same way as \verb!beta_myo!.
+To assume there is no loss in calcium at boundary due to diffusion, we always
+have Camyo(0) = Camyo(1), and Camyo(n) = Camyo(n+1).
+
+Other Calcium-bound complexes:
+\begin{verbatim}
+dCaBhtrpn = kon_htrpn*Ca_myo*(B_htrpnT - CaB_htrpn) - koff_htrpn*CaB_htrpn  
+dCaF = kon_F * (Ca_myo_in(current) * F_in(current)) - koff_F * CaF_in(current) 
+\end{verbatim}
+
+\section{Parameters in a model}
+\label{sec:parameters-model}
+
+\begin{verbatim}
+zCa = 2         (valence)                               [unitless]
+zNa = 1
+zK  = 1   
+\end{verbatim}
+
+\begin{verbatim}
+time            (current simulation time)               (sec)
+t_start         (when start stimulation)                (sec)
+t_end           (when stimulation end)
+write_firstbeat    (write out FB or not?)  0 or 1
+duration_write_lastbeats    duration to write-out (counting from the end)
+write_restartfile    write to restart-file?       0 or 1
+
+NSFU            (number of CRUs)                        [unitless]
+                20,000
+N_L             (number of LCC in a CRU)
+                7
+N_R             (number of RyR in a CRU)
+                49 
+% mL              (number of Markovian state single LCC)
+%                 6
+% mR              (number of Markovian state single RyR)
+%                 2
+
+## Voltage (membrane potential)
+Vm              (membrane potential)                    (mV)
+
+V_rest          (resting membrane potential)            (mV)
+                -8.5d1 mV
+V_stim          (stimulated potential)
+                -1.0d1, 1.0d1, ... mV
+I_stim          (stimulated current density)            (uA/cm^2)
+                -6.5189 (uA/cm^2) ~ -1 (nA) with Am = 1.534d-4 cm^2
+
+dt_LB           (lower-bound time step)                 (sec)
+                1d-8 sec
+dt_UB           (upper-bound time step)
+                1d-6 sec
+
+t_V_stim_start  (when to start V-stimulation)           (sec)
+                10ms ~ 1d-2 s
+t_V_stim_duration  (duration of V-stimulation) 
+                100ms ~ 1d-1 s
+t_I_stim_start
+                10ms 
+t_I_stim_duration
+                5ms ~ 5d-3 s
+
+Hz              (frequency of stimulation)              [Hz] = (1/sec)
+                number of stimulations per sec
+%write_interval  (how often to write data out)           (ms)
+%                0.1 ms
+write_interval  (how often to write data out)           (s)
+                0.1d-3 s
+
+### ionic concentrations
+Na_o            (out-cell sodium concentration)         (uM)
+                1.4d5 uM  = 140 mM
+Na_i                                                    (uM)
+                1.02d4 uM = 10.2mM
+K_o                                                     (uM)
+                5.4d3 uM  = 5.4 mM
+K_i                                                     (uM)
+                1.43720d5 uM = 143.7205 mM
+Ca_o                                                    (uM)
+                1.8d3 uM  = 1.8 mM
+Ca_myo                                                  (uM)
+                old: 9.00000d-02 uM (0.09 uM)
+                new: 1.0d-1 uM (0.1 uM)
+Ca_nsr                                                  (uM)
+                1.00000d+03 uM (~ 1mM)
+
+Ca_ds           (calcium in subspace)                   (uM)
+                = Ca_myo (initially)
+Ca_jsr          (calcium in jsr)                        (uM)
+                = Ca_nsr (initially)
+
+Csc             (specific membrance capacitance)        [uF/cm^2]
+                1.0d0
+#NOTE: Csa = capacitance of the cell's surface area [pF]
+
+zF              (Faraday constant)                      [C/mol]  = [mJ/(mV.mol)]
+                9.6485d4
+zR              (universal gas constant)                [mJ/(K.mol)]
+                8.314d3
+zT              (temperature)                           [K]
+                310K
+
+eta_RyR         (cooperativity number - calcium bind to RYR) [unitless]
+                2.2d0
+                unused: 2.3d0 (stabilizing open ryr better)
+                
+eta_LCC         (...- bind to LCC)              [unitless] 
+                2.00000d0
+                
+eta_Ca_CaM      (... - calcium bind to Calmodulin)
+				2.0
+				                
+eta_pmca        (...of plasma membrane Ca2+-ATPase)     [unitless]
+                2.0d0
+
+Ej              (average RyR allosteric connection)     [unitless]
+                =1/(N_R*(N_R-1)) *
+                 ((sqrt(N_R)-2)^2*4+(sqrt(N_R)-2)*4*3+4*2)
+## For N_R = 49, Ej = 0.0714
+
+Ej_small        (... for small cluster)                 [unitless]
+
+Ecc             (allosteric coupling energy...)         [unitless]
+                when RyR and its neighbor are both at 
+                Close (C) state
+                -9.2
+Eoo                                                     [unitless]
+                when RyR and its neighbor are both at 
+                Open (O) state
+                -8.5
+                
+## NOTE: we already remove the energy term k_BT from the formula of 
+#  allosteric coupling, with  1 [k_B.T] = 1.381x10^{20} [mJ]
+#  with k_B = Boltzmann constant
+#       T   = temperature [K]
+# Ecc and Eoo depends on mR, the number of state of 
+# single RyR channels
+# mR = 2 : Ecc = -0.92, Eoo = -0.85
+
+## volume of cell components
+V_cell          (cell volume)                           (pL) 
+                36.8 pL
+
+## values in parameters files should be in (pL) 
+V_myo_T         (volume myoplasm)                       (pL)
+                + ventricular myocyte
+                rat: 1.8d1 pL
+
+V_nsr_T
+                + ventricular myocyte
+                rat: 1.08d0 pL
+V_jsr_T
+                + ventricular myocyte
+                rat: 9.0d-2 pL
+V_ds_T
+                + ventricular myocyte
+                rat: 2.7d-2 pL
+
+### Volume of cell components in spatial model
+cell_x_len = 100 um
+cell_y_len = 20  um
+cell_z_len = 18  um
+## V_cell = 36,000 um^3 = 36x10^3x(10^-5)^3x10^12 pL = 36pL 
+# NOTE: 1pL = 1000 um^3
+
+
+
+## Ca2+ buffering fraction [from 0..1], i.e. fraction of Ca2+ is free
+beta_ds         (in subspace)                           [unitless]
+                fixed: 0.1d0, i.e. 90% is bound, and 10% is free
+beta_nsr           (in network SR)
+                fixed: 1, i.e. 100% is free (i.e. no buffer)
+
+## total Ca2+ buffer concentration
+# 2 main buffers in the myo: Troponin and Calmodulin (CaM)
+B_myoT          (CaM-liked buffer in myoplasm)          (uM)
+                143 uM 
+B_jsrT          (in JSR)
+                14000 uM
+B_htrpnT        (in myoplasm)
+                1.40000d+02
+
+## Assume fast buffering for B_jsr and B_myo
+# The half-saturation constants are
+Km_myo                                                  (uM)
+                9.60000d-1
+Km_jsr                                                  (uM)
+                6.38000d+02
+
+## For slow-buffering, the reaction constants are
+kon_htrpn       troponin Ca on rate                     [1/(uM*s)]
+                2.37000d+00
+koff_htrpn      troponin Ca off rate                    (1/sec)
+                3.20000d-02
+
+## transfer rate of Ca2+ (defined based on 20,000 CRUs and V_myo_T)
+v_refill_T      summation from 20,000 CRUs              (1/sec)
+                5.0d0 (rat)
+v_efflux_T
+                2.5d2 
+v_leak          (transfer rate across NSR to bulk myo)  (1/sec)
+                0d0
+v_ryr_T
+                old: 4.72419d1
+                new: 5.64279d1 
+# NOTE: If V_myo_T is reduced half, we also need to reduce CRUs half
+#       for these rates to be unchanged
+# However, in non-spatial simulation, we often run with a smaller
+# amount of CRUs, while keeping the V_myo_T unchanged. That's why 
+# we need to increase the per channel rate using
+# v_ryr = v_ryr_T / (NSFU * N_R)
+# In spatial simulation, if we work with myoplasmic volume of a 
+# single grid point, we don't have to change v_ryr.
+
+# percent of non-junctional RyR compared to junctional RyR
+prcent_ryr_nj   (percent)                               [unitless]
+                5d-2
+
+## maximum total permeability (at whole-cell level)
+# with DHPR are locate at CRUs 
+P_dhpr_T                              [10^-3cm^3/sec] or [10^-6 L/sec]
+                1.8721d-4   (when i_1dhpr = 0.25 nA)
+                other to try: 1.1233d-3 (when i_1dhpr = 0.15 nA) - not work
+# NOTE: At whole-cell level, we use [L/sec], rather than (uM/sec)
+# for the permeability
+
+# percent of DHPR are located at sarcolemmal membrane, but not in CRU
+# compared to junctional DHPR
+prcent_dhpr_nj  (percent)                               [unitless]
+                10d-2
+
+
+## SERCA-pump
+Ap              (concentration of SERCA molecules)      (uM)
+                150 uM
+# assuming Ca-binding to SERCA is fast                
+Kp_myo          (dissociation constant of Ca-binding    (uM)
+                to SERCA on myoplasmic side)
+                0.91d+3 uM             
+Kp_nsr          (dissociation constant of Ca-binding    (uM)
+                to SERCA on NSR side)
+                2.24d+3 uM
+
+Am              (whole-cell membrane area)              (cm^2)
+                1.5340d-4 (cm^2)
+Acap = Am*Csc   (capacitative membrane area of cell)    [uF]
+
+
+## Maximum conductance of different ion channels
+# We preferably use [mS/cm^2] rather than [ms.uF]
+g_bCa           (background Ca2+ conductance)           [mS/cm^2] 
+                old: 7.36351d-4 mS/cm^2 (work with cmyo = 0.09 uM)
+                new: 8.6918d-4 mS/cm^2  (work with cmyo = 0.1 uM)
+g_Na
+                1.3d1 mS/cm^2
+g_K1
+                0.20  mS/cm^2
+g_Kss
+                2.105d-2 mS/cm^2
+                other to try: 4.12d02
+g_Ktof
+                0.0798d0 mS/cm^2 
+g_Ktos
+                3.145d-2 mS/cm^2
+                other to try: 6.29d-2                
+g_bNa
+                1.066d-4 mS/cm^2
+g_bK
+                0.0d0 mS/cm^2
+
+## Maximum Ca2+ current density
+I_pmca_bar      (via plasma-membrane Ca-ATPase)         (uA/cm^2)
+                0.75d0 
+I_ncx_bar       (via Na/Ca-exchanger)                   (uA/cm^2)
+                1.0d3
+
+# Maximum Na+ current density
+I_NaK_bar       (via Na/K-exchanger)                    (uA/cm^2)
+                0.88d0
+
+#NOTE: J (flux) = I x ... [mol/(cm^2.sec)]
+#      are defined based on V_myo_T
+
+% ## Rate transitions ([uM^eta.sec^{-1}] or [sec^{-1}] depending 
+% #    on the scheme)
+% # with eta is the Hill coefficient
+% kR12                        ! C-> O [1/(s.uM^-eta_RyR)]
+% kR21                        ! O-> C (1/sec)
+% kL25
+% kL16
+% kL34
+% kL21
+% kL56
+% kL23
+% kL54
+% kL52
+% kL12
+% kL32
+% kL65
+% kL45   (remove all transition rates)
+
+k_jsr0                                                  (uM^-1)
+         2.30000d-04   
+k_jsr1                                                  [unitless]
+         2.00000d-02   
+
+v_theta_dhpr                                            (mV)
+ 	     2.0d0
+sigma_v_dhpr                                            (mV)
+         6.50d0
+         
+### read-in but not being used for now, may be we need to remove????
+V_theta2, V_sigma2
+
+
+# cell size (um)
+1.00d2        x_length
+2.00d1        y_length
+1.80d1        z_length
+
+## Grid element dimension (0.1 um or 0.2 um)
+dX_                                                     (uM)
+dY_
+dZ_   
+
+
+## Diffusion constants of free Ca2+
+# in myoplasm
+Dmyo_x                                                  [um^2/sec]
+           note: use 225 um^2/sec 
+           other to try: 300 um^2/sec
+Dmyo_y
+Dmyo_z   
+# in NSR
+Dnsr_x                                                  [um^2/sec]
+           use 10 um^2/sec
+Dnsr_y
+Dnsr_z
+
+lspacing    long_spacing_CRU                            (uM)
+           2.0 or 1.6
+tspacing    tran_spacing_CRU
+           0.8 or 0.6 
+                                 
+\end{verbatim}
+
+% boundary_condition         
+%            1.0 = Dirichlet
+%            2.0 = Neumann
+%            3.0 = Robin
+
+\section{Computed variables}
+\label{sec:computed-variables}
+
+\begin{verbatim}
+## Some computed quantities
+RT_F = RT/F                                             [mJ/C] = (mV)
+              26.7123387
+F_RT = F/RT                                             [1/mV]
+              0.0374358835
+RT_FzCa = RT_F/zCa                                      (mV)
+              13.3561693528
+
+# use in calcium current calculation
+Am_2FVmyo     (old name: Am2FVmyo)                      [mol.cm^2/(C.L)]
+              = Am*1d12/(zCa*zF*V_myo_T)
+              30.76401 [mol.cm^2/(C.L)]
+
+# use in Na, K current calculation
+Am_FVmyo                                               [mol.cm^2/(C.L)]
+              = Am*1d12/(zF*V_myo_T)
+
+#may be used by EC-coupling model
+F2zCa2_RT=zF**2*zCa**2/(zR*zT)                          [C/(mol.mV)]
+              =14448.004878
+FzCa_RT=zF*zCa/(zR*zT) = 1/RT_FzCa                      [1/mV]
+              =0.0748717670153
+
+inv_2FVmyo = 1.0d12/(zCa*zF*V_myo_T)                    [mol/(C.L)]
+
+## Volume
+V_ds          (volume of a single subspace)            (pL)
+               = V_ds_T/dfloat(NSFU)
+V_jsr         (volume of a single JSR)
+               = V_jsr_T/dfloat(NSFU)
+## NOTE: In non-spatial simulation, we often run with a smaller amount
+#   of CRUs, while keeping V_myo_T unchanged. That's why we need to 
+#   increase the volume occupied by a single CRU.
+#   In spatial simulation, V_ds, V_jsr should be set fixed 
+#  (see spatial model)
+
+## Volume fraction (which is being used to map 
+#  fluxes with concentration defined over V_myo_T
+#  to the concentration defined on the corresponding volume
+#  when we find dc/dt
+lambda_ds, lambda_jsr, lambda_nsr                    [unitless]
+    lambda_ds = V_ds/V_myo_T
+    lambda_jsr = V_jsr/V_myo_T
+    lambda_nsr = V_nsr_T/V_myo_T
+# to avoid computational drop, we use inv_lambda
+inv_lambda_ds = V_myo_T/V_ds                         [unitless]
+inv_lambda_jsr = V_myo_T/V_jsr
+inv_lambda_nsr = V_myo_T/V_nsr_T
+
+
+## may be used by spatial whole-cell model
+invKp_myo = 1d0/Kp_myo
+invKp_nsr = 1d0/Kp_nsr
+invzCa = 1.0d0/zCa                                   [unitless]
+
+dx2 = dX_^2                                          [um^2]
+dy2 = dY_^2                                          [um^2]
+dz2 = dZ_^2                                          [um^2]
+
+MAXX, MAXY, MAXZ                                     [unitless]
+\end{verbatim}
+
+
+\section{Transfer rate}
+\label{sec:transfer_rate}
+
+
+A transfer rate is defined by the transport of number of molecules $n$ per an
+ion channel per second (or number of moles $(n/N_A)$per an ion channel per
+second, with $N_A$ is the Avogradro number. Ions move faster through ion
+channels than through carriers (exchangers)
+\begin{enumerate}
+  \item throughput through ion channels: $10^6-10^8$ ions/sec, which maps to
+  current equivalent of $10^{-12}-10^{-10}$ Amperes (or 1-100pA), assuming the
+  ion is monovalent. 
+  \item transfer rate for Na/K-ATPase is 300 $\Na$ \& 200$\K$ /sec, which maps
+  to current equivalent 1.5$\times 10^{-17}$Amperes. 
+\end{enumerate}
+
+The transfer rate is dependent upon the concentration, but not the volume. So,
+there's no change in the rate when shifting to spatial model at all.
+% So,
+% However, in our model, the transfer
+% rate is defined in unit of (1/sec). The reason is that they are mapped to total
+% myoplasmic volume ($V_\refe = V_\myoT$ (pL)). It means that if the transfer rate
+% is A (pL/s); then the value that we keep is $\frac{A}{V_\myoT}$ (1/s). 
+% In the spatial model, the transfer rate is mapped to the myoplasmic volume of a
+% single grid point $V_\refe = V_\myo$. 
+
+\subsection{Non-spatial ($V_\myoT$)}
+\label{sec:transfer_rate-non_spatial}
+
+This requires the same convention in other quantities, i.e. calcium
+concentration should be defined on this $V_\myoT$, $v_\rf, v_\ef, v_\ryr$ should
+be defined over $V_\myoT$. If we use a different volume reference, we need to
+convert these values accordingly. It means that if we have $v_\rf^T=5.0d0$
+(1/s) defined for 20,000 CRUs on $V_\myoT=1.8$pL. Then, the efflux for a single
+CRU defined over $V_\myoT=1.8$pL is 
+\begin{verbatim}
+v_efflux = v_efflux_T / 20000
+\end{verbatim}
+Now, the efflux for a single CRU defined over $V_\myoT=a$ (pL) then
+\begin{verbatim}
+v_efflux_a = v_efflux * V_myo_T/a
+\end{verbatim}
+
+Example: The transfer rate via a single RyR channel
+\begin{verbatim}
+v_ryr      (the maximum transfer rate for a single channel)         (1/sec)
+           = i_1ryr*1.0e6/(1.0e3*zCa*zF*V_myo_T)
+\end{verbatim}
+
+Here, \verb!v_ryr! should be explicitly defined as
+\begin{verbatim}
+    v_ryr = i_1ryr * 1e6/ (DCa * zCa * F * V_myo_T)
+# with i_1ryr = 0.2pA (single RyR current)
+#      DCa =  [Ca]jsr - [Ca]ds ~ 1000 uM
+#      zCa = 2
+#      F   = Faraday constant (C/mol)
+#      V_myo_T = volume myoplasmic total (pL)
+DCa = Ca_nsr-Ca_ds ~ 1000 (uM)
+zCa = 2
+zF  = 9.6485d4 [C/mol]
+i_1ryr                                                      (pA)
+         = 0.2 (pA)
+V_myo_T                                                    (pL)
+         = 18 pL (rat cardiac cell)
+         
+v_ryr_T    (the transfer rates at whole-cell level)         (1/sec)
+           = v_ryr * NSFU * N_R
+\end{verbatim}
+So (defined based on $V_\myoT$), 
+\begin{enumerate}  
+  \item \verb!i_1ryr = 0.22! (pA) then \verb!v_ryr_T! = 62.07688 (1/s)
+  \item \verb!i_1ryr = 0.2! (pA) then \verb!v_ryr_T! = 56.4279 (1/s)
+  \item \verb!i_1ryr = 0.17! (pA) then \verb!v_ryr_T! = 47.9637 (1/s)
+  \item \verb!i_1ryr = 0.18! (pA) then \verb!v_ryr_T! = 50.78 (1/s)
+  \item \verb!i_1ryr = 0.185! (pA) then \verb!v_ryr_T! = 52.19 (1/s)
+  \item \verb!i_1ryr = 0.15! (pA) then \verb!v_ryr_T! = 42.3209134 (1/s)11
+\end{enumerate}
+
+The flux via RyR is defined as in eq.~\eqref{eq:19}. So, for a single
+channel, the flux is defined as
+\begin{equation}
+  \label{eq:44}
+      J_{1\ryr} = v_\ryr.([\Ca]_\jsr^\ii-[\Ca]_\ds^\ii)
+\end{equation}
+On the other hand, the flux is defined via the single channel current
+$i_{1\ryr}$ as
+\begin{equation}
+  \label{eq:45}
+  J_{1\ryr} = i_{1\ryr}\frac{1}{z_\ca F V_\myo^T}
+\end{equation}
+So, the transfer rate is found by the equation
+\begin{equation}
+  \label{eq:46}
+  v_\ryr = \frac{i_{1\ryr}}{z_\ca F V_\myo^T([\Ca]_\jsr - [\Ca]_\ds)}
+\end{equation}
+
+Now:
+\begin{enumerate}
+  \item  applying $[\Ca]_\jsr = 1e3\mu$M, $[\Ca]_\ds = 0.1\mu$M, $z_\ca=2$,
+$F=9.6485e4$ (C/mol), and $V_\myo^T=25.84\times 10^{-6}\mu$L,
+$i_{1\ryr}=0.2$(pA)
+\begin{equation}
+  \label{eq:47}
+  v_\ryr = 4.01095407602\times 10^{-5}  \;\;\;\text{[1/s]}
+\end{equation}
+and 
+\begin{equation}
+  \label{eq:48}
+  v_\ryr^T = v_\ryr\times 20000\times 49 = 3.9307349945d1 \;\;\text{[1/s]}
+\end{equation}
+  With this rate, and using the smaller VmyoT=18.4pL, then the single channel
+  current is only 0.14pA.
+  
+  \item If we use the smaller volume VmyoT=18.4pL, to achive the same single
+  current, we need a larger single current transfer rate. If $i_{1\ryr}=0.2$(pA)
+  %applying $[\Ca]_\jsr = 1e3\mu$M, $[\Ca]_\ds = 0.1\mu$M, $z_\ca=2$,
+%$F=9.6485e4$ (C/mol), and $V_\myo^T=18.4\times 10^{-6}\mu$L. To 
+\begin{equation}
+  \label{eq:47}
+  v_\ryr = 5.63277\times 10^{-5}  \;\;\;\text{[1/s]}
+\end{equation}
+
+\end{enumerate}
+
+The refill rate from NSR to JSR (defined based on $V_\myoT$)
+\begin{equation}
+v_\rf = v_\rf^T/NSFU
+\end{equation}
+
+References:
+\begin{itemize}
+  \item \url{http://www.convert-me.com/en/convert/flow_rate_volume}
+\end{itemize}
+
+%\subsection{Spatial ($V_\myo$)}
+\subsection{Spatial}
+\label{sec:transfer_rate-spatial}
+
+The transfer rate doesn't change upon the change of volume, but the change of
+concentration. So, even the flow from subspace to bulk myoplasm in the
+compartmental model turns into the flow from subspace to a single grid point,
+the rate is the same, as the concentration of the single grid point is like the
+one of bulk myoplasm. Even though, there can be some difference which requires
+the adjustment of the parameters. But there's no significance change in the
+value.
+
+IMPORTANT: The volume being used is considered as $V_myo_T=18.4$ (pL).
+% 
+% The transfer rate is defined based on the volume of a single grid point $V_\myo$
+% with the dimension is 0.2x0.2x0.2 ($\mu$m$^2$). 
+% \begin{equation}
+%  v_\ryr = \frac{i_{1\ryr}}{z_\ca F V_\myo ([\Ca]_\jsr - [\Ca]_\ds)}
+% \end{equation}
+% and
+% \begin{equation}
+% v_\rf = \frac{v_\rf^T}{20000} *
+% V_{\myo(true)}^T/\text{Vol\_ref}
+% \end{equation}
+% with \verb!V_myo_T_true! is real-size cell total myoplasmic volume,
+% \verb!Vol_ref! is the reference volume which is equal to $V_\myo$ in our case. 
+% 
+% Given the diffusion constant $D_\myo=250\mu$m$^2$/s, and the distance about
+% dx=0.05-0.1$\mu$m$^2$, the transfer rate can be estimated to be $D_\myo/(dx)^2$,
+% or $v_\ef \sim 25,000-100,000$ (1/s).
+% 
+% \begin{verbatim}
+% v_leak = v_leak * V_myo_T_true/Vol_ref
+% \end{verbatim}
+% However, for simplicity, we just use \verb!v_leak=0.0d0!.
+
+\section{Channel current}
+\label{sec:channel_current}
+
+The current is the net flow of charge across the membrane via channel pore. The
+driving force to push the ion across the membrane via channel pore is dependent
+on the concentration gradient and the voltage.
+
+The direction of the current flow is the direction of the flow of positive
+charge relative to the inside of the cell
+\begin{enumerate}
+  \item Inward current: positive charge flowing into the cell, i.e. negative
+  charge flowing out of the cell, e.g. LCC channel
+  (Sect.\ref{sec:LCC_permeability})
+  \item Outward current: positive charge flowing out of the cell, e.g. 
+\end{enumerate}
+
+Single channel current is calculated using Ohm's law: $i=g(V_m-E_\rev)$. 
+\begin{enumerate}
+  \item $i$ (pA) single channel current
+  \item $g$ (pS) single channel conductance
+  \item $V_m$ (mV)
+\end{enumerate}
+
+For macroscopic current, we use the single channel current and the total number
+of channel $n$ and the opening probability $P_o$
+\begin{equation}
+I = i\times n \times P_o
+\end{equation}
+with $I$ ($\muA$). 
+\begin{enumerate}
+  \item If the channel is non-voltage gated, the single channel i/V curve is
+  linear (Ohmic) and so the macroscopic I/V curve but with greater slope.
+   
+  \item If the channel is voltage-gated, the $P_o$ plot is sigmoidal
+of $V_m$, i.e. increasing voltage increase $P_o$ to a point and then saturate.
+So, still i/V curve is linear, but the macroscopic I/V curve has both
+exponential and linear components. 
+\end{enumerate}
+NOTE: I/V curve tells us nothing about the gating. It only tells us what is the
+current when the channel open.	
+
+\section{Rectifying $\K$ channel}
+
+A rectifying channel is a voltage-gated channel (Sect.\ref{sec:channel_current})
+but passes current better in one direction that it does in another. 
+
+\begin{enumerate}
+  \item $\K$ inward rectifier: the channel open at rest, and allow ions to flow
+  into the cell, but not out. 
+\end{enumerate}
+
+
+\section{LCC Permeability}
+\label{sec:LCC_permeability}
+
+\subsection{Single channel}
+\label{sec:permeab-single_channel}
+
+The permeability of a single ion channel is defined as
+\begin{equation}
+  \label{eq:41}
+  P_\dhpr = \frac{i_\dhpr}{z_\ca ^2 \frac{F}{RT/F}V_m
+      \left[\frac{\exp\left(\frac{z_\ca V_m}{RT/F}\right)[\ca]_\myo-0.341[\ca]_o}{\exp\left(\frac{z_\ca V_m}{RT/F}\right)
+          - 1} \right]} 
+\end{equation}
+with $i_\dhpr=0.25$pA (OLD) and  is the single channel current measured at
+$V_m=-10$mV, with $[\Ca]_\myo=0.1\mu$M, and
+$[\Ca]_o=2$mM=$2\times10^3\mu$M, which gives
+\begin{equation}
+  \label{eq:43}
+  P_\dhpr = 1.337245085\times 10^{-15} \;\; \text{L/s}
+\end{equation}
+and
+\begin{equation}
+  \label{eq:42}
+  \begin{split}
+      P_\dhpr^T=P_\dhpr\times 20,000 \times 7 &= \\
+      % 0.187214311\times 10^{-6} \;\;\text{cm$^3$/s} \\
+      % &= 1.87214311\times 10^{-3} \;\;\text{$\mu$m.cm$^2$/s}
+  &= 1.87214311\times 10^{-10} \;\;\text{L/s}
+  \end{split}
+\end{equation}
+
+In the spatial model, the function \verb!find_Pdhpr_singlechannel()! will return
+the permeability for a single channel. 
+
+% \begin{verbatim}
+% Vm = -10d0
+% Ca_o = 2d3 
+% P_dhpr = i_1dhpr / ((4*zF*Vm)/RTF * ((0.1d0*exp(2*Vm/RTF)-0.341 *
+%          Ca_o)/(exp(2*Vm/RTF)-1))) 
+% NSFU = 20000
+% N_L = 7
+% P_dhpr_T = P_dhpr * NSFU * N_L
+% 
+% # In spatial simulation, when we reduce V_myo_T, we also need to
+% # reduce NSFU as well, so we don't have to change P_dhpr, and it must
+% be defined using  
+% # P_dhpr = P_dhpr_T/ (20000 * N_L)
+% 
+% # v_efflux and v_refill doesn't change????? [TUAN]
+% 
+% \end{verbatim}
+For the case of non-junctional LCC, there is a number of choice 
+\begin{enumerate}
+  \item we can assume its contribution is equally
+distributed to every grid element, so the corresponding
+permeability contributed to each grid point is
+\verb!P_dhpr_nj/NUM_GRID_ELEMENTS!. 
+  \item  model them as a number of small cluster neighboring to the large
+  cluster. This will be published in a separate paper. 
+\end{enumerate}
+
+\subsection{Whole-cell level}
+\label{sec:permeab_whole-cell}
+
+The permeability at whole-cell level is defined as
+\begin{verbatim}
+P_dhpr_T  = P_dhpr * (20000 * N_L) 
+\end{verbatim}
+
+In the simulation, we can use smaller than 20,000 release sites. In this case,
+we can assume that the flux from a single release is larger than usual, by
+dividing NSFU.
+\begin{verbatim}
+P_dhpr  = P_dhpr_T / (NSFU * N_L) 
+\end{verbatim}
+\verb!P_dhpr_nj! in non-spatial model is based on whole-cell. If we model
+non-junctional LCC as 10\% of whole-cell LCC in the junctions, then the
+permeability is \verb!P_dhpr_nj = P_dhpr_T * 10%!.
+
+\section{RYR permeability}	
+
+
+
+\section{Bacground conductance}
+\label{sec:bacground_conductance}
+
+The background conductance is chosen so that it cancel out the change of calcium
+concentrations in the myo during quiescent stage of the cell. During this stage,
+the two available calcium currents are $I_\ncx$ and $I_\pmca$. So, $g_\bCa$ is
+chosen so that $J_\bCa+J_pmca+J_\ncx = 0$.
+ 
+
+\section{dp\_arg(1\ldots6)}
+\label{sec:dp_arg}
+
+These are parameters passed to the kernel to avoid uncessary evaluations. 
+\begin{enumerate}
+  \item Leak model: \verb!dp_arg1, dp_arg2!
+  \item ECC model: \verb!dp_arg1, dp_arg2!
+  \begin{verbatim}
+dp_arg1 = EXP(Vm*FzCa_RT)
+dp_arg2 = 1.d0 / (dp_arg1 - 1.d0)
+  \end{verbatim}
+  
+  \item Spatial model: (assume Vm is homogeneous) \verb!dp_arg1, dp_arg2!,
+  \verb!dp_arg3, dp_arg4, dp_arg5, dp_arg6!
+  \begin{verbatim}
+dp_arg3 = EXP(eta_ncx*Vm*F_RT)
+dp_arg4 = EXP((eta_ncx-1.d0)*Vm*F_RT)
+dp_arg5 = 1 / ((Km_ncxNa**3 + Na_o**3)*(Km_ncxCa+Ca_o)*(1.d0+ksat_ncx*dp_arg4))
+dp_arg6 = Na_o**3
+  \end{verbatim}
+\end{enumerate}
+
+\section{Concentration}
+\label{sec:concentration}
+
+In chemistry, a molar concentration is defined as the amount of a substance (in
+mole) within a given volume. In biology, molar concentration is used with unit
+of [$\mu$M] or micromole per litre. 
+\begin{itemize}
+  \item $[\Ca]_\ds$ is the amount of free calcium within the subspace (defined
+  over the volume of subspace $V_\ds$)
+  \item $[\Ca]_\jsr$ is the amount of free calcium within the junctional-SR
+  (defined over the volume of $V_\jsr$)
+  \item $[\Ca]_\nsr$ is the amount of free calcium within the network-SR
+  (defined over the volume of $V^T_\nsr$)
+  \item $[\Ca]_\myo$ is the amount of free calcium within the myoplasm (defined
+  over the volume of $V^T_\myo$)
+\end{itemize}
+
+In the spatial model, for a single grid point, the concentration is defined as
+\begin{itemize}
+  \item $[\Ca]_\nsr$ is the amount of free calcium within the network-SR
+  of a single grid point (defined over the volume of $V_\nsr$)
+  \item $[\Ca]_\myo$ is the amount of free calcium within the myoplasm
+  of a single grid point (defined over the volume of $V_\myo$)
+\end{itemize}
+
+Total free SR calcium concentration is 
+\begin{verbatim}
+Ca_SRT = (Ca_NSR * VnsrT + Cajsr_T * Vjsr) / (VnsrT + VjsrT)
+\end{verbatim}
+
+
+
+\section{Range of values}
+\label{sec:range_values}
+
+\subsection{Non-spatial}
+\label{sec:ranges_non-spatial}
+
+Typically, the range is varied within 20-30\% of the mean of the value. Here are
+some information 
+\begin{enumerate}
+  \item \verb!v_efflux_T! : a freedom parameter, typically, we choose so
+  that it keeps the peak within 100-150$\mu$M. In non-spatial model, we use
+  \verb!v_efflux_T=250! (1/s) defined based on $V_\myoT$.
+  
+  \item \verb!v_refill_T! : a value depending on the size of $V_\jsr$.
+  In the non-spatial model, we choose 5.0d0 (1/s) defined based on $V_\myoT$.
+  
+  \item \verb!v_leak_T! : we set to zero assuming there is no leak, other than
+  the 3 proposed mechanisms: (1) $\Ca$ sparks, (2) invisible $\Ca$ leak, and
+  (3) leak via non-junctional RyRs.
+  
+  \item \verb!v_ryr_T!: it's dependent upon the single channel RyR channel (see
+  Sect.\ref{sec:transfer_rate})
+  
+  \item \verb!P_dhpr_T!: the peremeability (L/sec) is dependent upon the single
+  channel current (see Sect.\ref{sec:LCC_permeability}).
+\end{enumerate}
+
+\subsection{Spatial}
+\label{sec:ranges_spatial}
+
+In the spatial, the ranges are defined based on a reference volume, which in our
+case is the $V_\myo$ of a single grid point.
+
+\section{What we can do to test}
+\label{sec:what-we-can}
+
+\begin{enumerate}
+\item Change $i_\ryr$ to see how the sparks and $\Ca$
+  waves/oscillations in cell
+\item Change $i_\dhpr$ to see how the sparks and $\Ca$
+  waves/oscillations and AP duration (APD) in cell
+
+\item Change $[\Ca]_o$ and $[\Ca]_\nsr$ to see how the ....
+
+\item Do I-clamp (1nA for 5ms) to see AP with simulation long enough
+  (e.g. 10s). The frequency is 1Hz.
+
+\item Do V-clamp with different values ranging from -40mV to +40mV,
+  and run long enough. The frequency is 1Hz.
+
+\item emulate caffeine-dump effect (Sect.\ref{sec:caffeine-dump}) 
+\item emulate effect of ruthenium red by
+  \begin{itemize}
+  \item inhibit all CaRUs at a certain time period: 
+  \end{itemize}
+\end{enumerate}
+
+
+Search for 'TUAN PLAN' to see future change.
+
+\subsection{Trigger a spark}
+\label{sec:spark_trigger}
+
+
+Typically, we want to trigger a spark to study what's its effect on the
+neighborhing sites. A spark is triggered when all RyRs in the cluster open.
+To do so, we can
+\begin{enumerate}
+  \item Hold one LCC channel open for 0.5ms or 1ms (whaterver it takes to ensure
+  a spark). \citep{sobie2002tcas} opened a stereotypical DHPR opening (0.5pA,
+  0.5ms) which can trigger a spark with fidelity $> 98\%$ \citep{sobie2002tcas}.
+  \begin{verbatim}
+  trigger_CRU_openDHPR(...)
+  \end{verbatim}
+  
+  \item Open more than 6 or 8 RyR channels at the same time: this pretty much
+  guarantee a spark. Two different names of the same function
+  \begin{verbatim}
+CALL trigger_CRU_openRYR(U_Ro, CRU_states(1:NSFU), NSFU, irow_R, &                                                                                                                                                   
+            LCCcluster_states, RYRcluster_states, is_all_CRU_open)    
+!or
+
+trigger_CRU_2
+  \end{verbatim}
+  This can be the effect of applying 15mM caffeine for 400ms \citep{song1997}.
+  Previously, we use the name \verb!trigger_CRU()!, yet to be clearer, we rename
+  to the name \verb!trigger_CRU_openRYR()!.
+  
+  \item Open RyR channel one by one, after a certain time period or a number of
+  time steps (in the case of adaptive time-step). The number of time-steps is given
+  by \verb!NUM_TIMESTEP_OPENCHANNEL!. Then, we use the code
+  \begin{verbatim}
+  ! how many time step before we open a new channel (KEEP it long enough)
+INTEGER, PARAMETER :: NUM_TIMESTEP_OPENCHANNEL = 2 
+INTEGER :: time_step_count_openchannel
+  
+IF (time_step_count_openchannel .EQ. NUM_TIMESTEP_OPENCHANNEL) THEN 
+   sfu_state = sfu_state_dev
+   CALL trigger_CRU_1(U_Ro, sfu_state, NSFU, is_all_CRU_open)
+   sfu_state_dev = sfu_state
+   RYRgate_dev(1:NSFU) = U_Ro(sfu_state(1:NSFU))
+   DHPRgate_dev(1:NSFU) = U_Lo(sfu_state(1:NSFU))
+   RYRgate_dev(NSFU+1:) = U_Ro_small(sfu_state(NSFU+1:))
+   time_step_count_openchannel = 1
+ELSE
+   time_step_count_openchannel = time_step_count_openchannel + 1
+ENDIF  
+  \end{verbatim}
+  
+\end{enumerate}
+
+
+\section{Nifedipine}
+\label{sec:nifedipine}
+
+Nifedipine (1$\mu$mol/L) can be used to reduce $I_\ca$ current, without changing
+single channel current amplitude, but change mean open time~\citep{santana1996}.
+It reduces number of evoked sparks. 
+
+\section{About mean/std}
+\label{sec:about-meanstd}
+
+Suppose you have a dataset and you have calculated the standard
+deviation (std) or variance, but don't have the mean. If you have some
+new data to include in the dataset. Can we estimate the new std
+without knowledge of the mean? - The answer is no.
+
+Suppose you have a complete dataset, can we estimate the std or
+variance without calculating the mean first? The answer is yes, as
+long as we can calculate the mean recursively and using that recursive
+mean. How? The formula is
+\begin{equation}
+  \label{eq:52}
+  s^2 = \frac{n\left(\sum^n_1 x_i^2\right) - \left( \sum^n_1
+      x_i\right)^2 } {n(n-1)}
+\end{equation}
+However, this method is vulnerable to the effects of round-off error
+in floating-point operation. So, a better work-around (described in
+Sect.4.2.2 of Donald Knuth's ``Art of Computer Programming, Vol.2''
+is\footnote{\url{http://mathcentral.uregina.ca/QQ/database/QQ.09.02/carlos1.html}}.
+\begin{verbatim}
+M(1) = x(1), S(1) = 0
+LOOP i =2 ... n
+  M(i) = M(i-1) + (x(i)-M(i-1))/i
+  S(i) = S(i-1) + (x(i) - M(i-1)) * (x(i) - M(i))
+END
+
+sigma = sqrt(S(n)/ (n-1)
+\end{verbatim}
+
+
+Now, the third problem is what if we have 2 dataset, each with its own
+mean, and variance (m1,s1), (m2,s2). If we mix them together into a
+single dataset, can we estimate the mean and variance of this combined
+dataset?. \url{http://www.physicsforums.com/showthread.php?t=325534},
+\url{http://communities.ptc.com/groups/member-showcase/blog/2010/10/07/estimating-combined-variance-from-sub-groups}. 
+
+\section{Steady-state estimation: Balance the fluxes in the model}
+\label{sec:steady_state}
+
+Suppose that initially, we have the expected value for Cmyo (0.1$\muM$) and Cnsr
+(1000$\muM$). After one second, Cmyo can be lowered, and Cnsr can be higher, or
+vice versa. But total should be remained constant. This requires calcium
+homeostasis, i.e. total calcium in and out across the SL should be remained
+constant (which we need to calculate the total ions in and ions out). To do so,
+we estimate total influx via SL, and total outflux via SL, and map them to the
+ions. During this simulation, remember to set $V_m$ as dynamics, i.e. we run
+I-clamp, in which we set $I_\app=0$. IMPORTANT: $I_\ncx$ is the total current of
+ions which is negative. However to calculate total calcium out by NCX, we need
+to multiply with (-2).
+
+\subsection{Define parameters}
+
+At first, we need to define what parameters should not be changed, to follow the
+biological and physiolical constrains. For example, cell volume, cytosolic
+volume, ionic currents. 
+
+\subsection{Balance flux across SL}
+
+At the first step, we block SR. We know that $[\Ca]_o=1.8$mM is fixed. Then, we
+allows cytoplasm calcium to change until it reaches a steady-state value, i.e.
+net flux across SL is zero. We also need to allow $V_m$ to changes so that we
+can know the exact resting potential. 
+
+If at the end, the steady-state value of $[\Ca]_\myo$ is too low or too high, we
+can re-adjust it by modifying the background calcium conductance. IMPORTANT: In
+such simulation, all other currents need to be enabled, and running at the
+proper cell volume setting. 
+
+At the end, we know the steady-state calcium, given the assumption that $\Ca$
+across SR is balanced. But we haven't balance the flux across SR yet. It's in
+the next step. The expected $[\Ca]_\myo$ at rest should be about 0.09-0.1$\muM$.
+
+The ideal is to have a plot \verb!g_bCa! vs. \verb!Ca_myo!($\infty$).
+The following pair is good enough: 
+\begin{verbatim}
+g_bCa = 7.70918d-4
+Ca_myo = 0.93438d-01
+\end{verbatim} 
+
+\subsection{Balance flux across SR}
+
+Now, we know the steady-state $[\Ca]_\myo$ should be. We want to know the
+resting value of $[\Ca]_\sr$. The constraints is that the total calcium leak,
+number of sparks, spark duration. 
+
+We run the fixed Cmyo setting, to see with this given of Cmyo, Cnsr what is the
+total $\Ca$ uptake per second. We know that total calcium leak per second is
+about 1-10$\muM$, but very closed to 1$\muM$, given the constrains of sparks
+rate and non-sparks events. So, we estimate \verb!Kp_nsr!, which is an unknown
+parameter.
+
+After adjusting \verb!Kp_nsr!, we run the simulation \verb!_MODE_CLOSED_CELL!
+setting. Here, we balance the amount of $\Ca$ across the SR, until a proper leak
+($>3000$ quarks, in which about 100 sparks, spark duration is 25ms on average
+in rat). 
+
+\subsection{Run in resting condition}
+
+
+After balancing the flux across SR and SL, we can run the resting condition
+\verb!_MODE_REST_CELL! setting to make sure the fluxes are balanced. 
+
+Finally, we run the stimulus setting I-clamp or V-clamp. 
+
+ 
+
+
+
